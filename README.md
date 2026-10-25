@@ -81,6 +81,13 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - **Storefront permissions:** in the Headless channel, turn on product listings and **Read product inventory** (`unauthenticated_read_product_inventory`), and make the products available to that channel.
   - **Once connected:** the sync switches to the Admin API.
 
+## Logo and favicon
+
+The header shows `assets/logo.png` and the browser tab shows `assets/favicon-32.png` and `assets/apple-touch-icon.png` when those files exist. If they're missing, the store name is shown as text and the old SVG favicon is used. To change them, replace the files in the repo, or upload them to the same paths in cPanel File Manager:
+- `logo.png`: about 88px tall, transparent background.
+- `favicon-32.png`: 32 by 32.
+- `apple-touch-icon.png`: 180 by 180.
+
 ## Visitor activity
 
 `/admin/visitors.php` shows, for today or the last 7, 30 or 90 days:

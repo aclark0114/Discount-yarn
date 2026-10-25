@@ -5,13 +5,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '5';
+const ASSET_VERSION = '6';
 
 function page_header(string $title, string $description = '', string $active = '', string $canonical = ''): void
 {
     $store = (string)config('store_name');
     $fullTitle = $title === '' ? $store . ' | ' . config('tagline') : $title . ' | ' . $store;
-    $desc = $description ?: 'Quality yarn at discount prices. Closeouts, overstock and sale skeins, shipped fast.';
+    $desc = $description ?: 'Name-brand yarn below its usual price, from brands knitters already use.';
     $path = strtok($_SERVER['REQUEST_URI'] ?? '/', '?');
     $canonical = $canonical !== '' ? $canonical : url($path);
     $count = cart_count();
@@ -34,7 +34,12 @@ function page_header(string $title, string $description = '', string $active = '
 <meta property="og:description" content="<?= e($desc) ?>">
 <meta property="og:type" content="website">
 <meta property="og:url" content="<?= e($canonical) ?>">
+<?php if (is_file(__DIR__ . '/../assets/favicon-32.png')): ?>
+<link rel="icon" href="/assets/favicon-32.png?v=<?= ASSET_VERSION ?>" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png?v=<?= ASSET_VERSION ?>">
+<?php else: ?>
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<?php endif; ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -48,7 +53,7 @@ function page_header(string $title, string $description = '', string $active = '
     <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
-    <a class="logo" href="/"><?= e($store) ?></a>
+    <a class="logo" href="/"><?php if (is_file(__DIR__ . '/../assets/logo.png')): ?><img src="/assets/logo.png?v=<?= ASSET_VERSION ?>" alt="<?= e($store) ?>" height="44"><?php else: ?><?= e($store) ?><?php endif; ?></a>
     <nav id="site-nav" class="site-nav" aria-label="Main">
       <?php foreach ($nav as $href => $label): ?>
         <a href="<?= e($href) ?>"<?= $active === $href ? ' aria-current="page"' : '' ?>><?= e($label) ?></a>

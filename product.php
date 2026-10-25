@@ -145,7 +145,7 @@ page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['n
         <?php endforeach; ?>
         <dt>SKU</dt><dd id="sku"><?= e($p['sku']) ?></dd>
       </dl>
-      <p class="muted small">Closeout yarn is final sale unless it arrives damaged. All skeins of one colorway in an order come from the same dye lot.</p>
+      <p class="muted small">Discounted yarn is final sale unless it arrives damaged. <a href="/shipping.php">Shipping and returns</a></p>
     </div>
   </div>
 </div>
