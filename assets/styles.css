@@ -186,6 +186,11 @@ p { margin: 0 0 1em; }
 .qty input { width: 56px; text-align: center; border: 0; font: inherit; padding: 10px 0; -moz-appearance: textfield; }
 .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .desc { margin: 20px 0; }
+.product-media { min-width: 0; }
+.thumbs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; gap: 8px; overflow-x: auto; }
+.thumbs a { display: block; width: 72px; height: 72px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--oat); }
+.thumbs a:hover, .thumbs a[aria-current] { border-color: var(--evergreen); box-shadow: 0 0 0 1px var(--evergreen); }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; }
 .swatches { border: 0; padding: 0; margin: 4px 0 8px; width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 360px; overflow-y: auto; }
 .swatches legend { font-weight: 600; font-size: .9rem; margin-bottom: 8px; padding: 0; }
 .swatch { position: relative; display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); cursor: pointer; font-size: .875rem; line-height: 1.3; }

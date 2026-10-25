@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '2';
+const ASSET_VERSION = '3';
 
 function page_header(string $title, string $description = '', string $active = '', string $canonical = ''): void
 {

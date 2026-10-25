@@ -41,6 +41,14 @@ $stock = (int)$p['stock'];
 $off = percent_off($p);
 $inCart = (int)($cart[$p['id']] ?? 0);
 
+// Every Shopify photo of this product, for the gallery under the main photo.
+$gallery = [];
+if (!empty($p['shopify_product_id'])) {
+    $st = db()->prepare('SELECT url, alt_text FROM product_images WHERE shopify_product_id = ? ORDER BY position');
+    $st->execute([$p['shopify_product_id']]);
+    $gallery = $st->fetchAll();
+}
+
 $related = catalog_groups(['is_active = 1', 'stock > 0', 'group_slug <> ?', '(brand = ? OR weight = ?)'], [$slug, $p['brand'], $p['weight']], 'random', 4);
 
 $specs = array_filter([
@@ -60,9 +68,20 @@ page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['n
     <?php if ($p['weight']): ?> / <a href="/shop.php?weight=<?= e(rawurlencode($p['weight'])) ?>"><?= e($p['weight']) ?></a><?php endif; ?>
   </nav>
   <div class="product-grid">
-    <div class="product-img">
-      <img id="main-img" src="<?= e(product_image($p)) ?>" alt="<?= e($p['name'] . ($p['colorway'] ? ', ' . $p['colorway'] : '')) ?>" width="800" height="800">
-      <span class="badge" id="off-badge"<?= $off > 0 ? '' : ' hidden' ?>><?= $off ?>% off</span>
+    <div class="product-media">
+      <div class="product-img">
+        <img id="main-img" src="<?= e(product_image($p)) ?>" alt="<?= e($p['name'] . ($p['colorway'] ? ', ' . $p['colorway'] : '')) ?>" width="800" height="800">
+        <span class="badge" id="off-badge"<?= $off > 0 ? '' : ' hidden' ?>><?= $off ?>% off</span>
+      </div>
+      <?php if (count($gallery) > 1): ?>
+        <ul class="thumbs" aria-label="More photos">
+          <?php foreach ($gallery as $i => $img): ?>
+            <li><a href="<?= e(sized_image($img['url'], 1600)) ?>" data-full="<?= e(sized_image($img['url'], 800)) ?>" data-alt="<?= e($img['alt_text'] ?: $p['name']) ?>" target="_blank" rel="noopener">
+              <img src="<?= e(sized_image($img['url'], 160)) ?>" alt="<?= e($img['alt_text'] ?: $p['name'] . ' photo ' . ($i + 1)) ?>" width="80" height="80" loading="lazy">
+            </a></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
     </div>
     <div class="product-info">
       <?php if ($p['brand']): ?><p class="card-brand"><?= e($p['brand']) ?></p><?php endif; ?>

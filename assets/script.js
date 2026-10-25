@@ -24,6 +24,19 @@
     });
   });
 
+  // Product gallery: a thumbnail shows its photo in the main spot.
+  var main = document.getElementById('main-img');
+  document.querySelectorAll('.thumbs a').forEach(function (a) {
+    a.addEventListener('click', function (ev) {
+      if (!main) return;
+      ev.preventDefault();
+      main.src = a.dataset.full;
+      main.alt = a.dataset.alt;
+      document.querySelectorAll('.thumbs a').forEach(function (x) { x.removeAttribute('aria-current'); });
+      a.setAttribute('aria-current', 'true');
+    });
+  });
+
   // Colorway picker on the product page: swap photo, price and stock.
   var form = document.getElementById('add-form');
   if (form && form.querySelector('.swatches')) {

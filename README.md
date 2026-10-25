@@ -15,7 +15,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `cron/expire_pending.php` | Daily cleanup of checkouts that never paid |
 | `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
 | `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
-| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql` | Database tables, run once each in phpMyAdmin, in order |
+| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `admin/pricing.php`, `includes/pricing.php` | Discount tiers for Shopify yarn |
 | `includes/catalog.php` | Grouped catalog: one card and one page per product, with a colorway picker |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
@@ -51,11 +51,12 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - `storefront_token`: can stay blank. The store creates one through the Admin API the first time it's needed and caches it.
 - **Cache folder.** `cache_dir` defaults to `/home/xwy78w88pv1w/discount-yarn-cache`, next to the config file. It holds the Admin token (renewed automatically about 5 minutes before its 24 hour expiry) and the Storefront token. It must be writable and outside `public_html`.
 - **Test it.** Open `/admin/shopify.php` and click Run connection test, or in cPanel Terminal run `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_check.php`. Either one shows the shop name, product count, granted scopes and a Storefront API check. Tokens are never shown.
-- **Database.** Run `schema_v2_shopify.sql`, then `schema_v3_pricing_groups.sql`, in phpMyAdmin once each, after `schema.sql`. Run them **before** deploying the code that needs them.
+- **Database.** Run `schema_v2_shopify.sql`, then `schema_v3_pricing_groups.sql`, then `schema_v4_images.sql`, in phpMyAdmin once each, after `schema.sql`. Run them **before** deploying the code that needs them.
 - **App scopes.** The Dev Dashboard app needs `read_products`, `read_inventory` and `write_inventory`. After adding a scope, release a new app version and approve it on the store.
 - **Sync.** Add a cron job every 15 minutes: `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_sync.php`. To refresh right away, use Sync catalog now on `/admin/shopify.php`. Pages always read the local copy, so the site stays up if Shopify is slow or down.
 - **How it maps.**
   - Each Shopify product gets one card in the shop and one page, with a picker for its colorways (variants). Sold-out colorways are shown but can't be picked. Vendor becomes brand.
+  - **Photos.** All photos come from Shopify and load from Shopify's image servers (resized with `?width=`), so nothing is copied onto this server. Each colorway uses its own photo, falling back to the product's main photo. The product page also shows up to 10 product photos as thumbnails, in Shopify's order and with Shopify's alt text. Videos and 3D models are skipped. Photo changes in Shopify appear after the next sync.
   - Weight is guessed from the product type, tags or a "Weight" option, and fiber from a tag such as `100% merino` or `fiber: alpaca`.
   - Only active Shopify products are copied. Products that are deleted, archived or set to draft disappear from the store on the next sync.
 - **Prices (discount tiers).** In admin > Pricing, choose a tier for the whole store, for each brand, and for any single product. A product's own tier beats its brand's, and a brand's beats the store default. Shoppers pay Shopify's price less the tier. The struck-through price is the higher of Shopify's price and its compare-at price. Changes apply immediately. The tiers on offer come from `discount_buckets` in the config (default 10, 25 and 50 percent; "No discount" is always available).

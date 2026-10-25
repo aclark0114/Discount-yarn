@@ -10,8 +10,9 @@ require_once __DIR__ . '/products.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/orders.php';
 
-const SHOPIFY_SYNC_PAGE = 8;       // products per request; keeps query cost under Shopify's 1,000 limit
-const SHOPIFY_SYNC_VARIANTS = 50;  // variants per product per request; more are paged
+const SHOPIFY_SYNC_PAGE = 5;       // products per request; keeps query cost under Shopify's 1,000 limit
+const SHOPIFY_SYNC_VARIANTS = 25;  // variants per product per request; more are paged
+const SHOPIFY_SYNC_IMAGES = 10;    // gallery photos per product
 
 const SHOPIFY_VARIANT_FIELDS = 'id sku title price compareAtPrice inventoryQuantity availableForSale
     inventoryItem { id }
@@ -108,6 +109,7 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
     $colorway = $vt === 'Default Title' ? '' : $vt;
     $image = $variant['media']['nodes'][0]['image']['url']
         ?? $product['featuredMedia']['preview']['image']['url']
+        ?? $product['media']['nodes'][0]['image']['url']
         ?? null;
     $stock = $variant['inventoryQuantity'] === null ? 0 : (int)$variant['inventoryQuantity'];
     if (empty($variant['availableForSale'])) {
@@ -146,6 +148,27 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         'shopify_inventory_item_id' => isset($variant['inventoryItem']['id']) ? (string)$variant['inventoryItem']['id'] : null,
         'group_slug'                => mb_substr(slugify((string)($product['handle'] ?? $product['title'] ?? '')), 0, 160),
     ];
+}
+
+// Replaces a product's gallery with its current Shopify photos. Returns how many.
+function shopify_save_gallery(array $product): int
+{
+    $pid = (string)$product['id'];
+    $urls = [];
+    foreach ((array)($product['media']['nodes'] ?? []) as $m) {
+        $url = $m['image']['url'] ?? null;   // non-image media (video, 3D) has no image
+        if ($url && !isset($urls[$url])) {
+            $urls[$url] = mb_substr((string)($m['image']['altText'] ?? ''), 0, 255);
+        }
+    }
+    $pdo = db();
+    $pdo->prepare('DELETE FROM product_images WHERE shopify_product_id = ?')->execute([$pid]);
+    $ins = $pdo->prepare('INSERT INTO product_images (shopify_product_id, position, url, alt_text) VALUES (?, ?, ?, ?)');
+    $pos = 0;
+    foreach ($urls as $url => $alt) {
+        $ins->execute([$pid, $pos++, mb_substr($url, 0, 500), $alt]);
+    }
+    return $pos;
 }
 
 // Units sold here that haven't been subtracted in Shopify yet (the push
@@ -270,6 +293,7 @@ function shopify_sync_catalog(): array
         $stats['pushed'] = shopify_push_pending_orders();
         $held = shopify_units_held();
         $seen = [];
+        $seenProducts = [];
         $pdo = db();
         $find = $pdo->prepare('SELECT * FROM products WHERE shopify_variant_id = ?');
 
@@ -279,6 +303,7 @@ function shopify_sync_catalog(): array
             nodes {
               id title handle vendor productType tags description createdAt
               featuredMedia { preview { image { url } } }
+              media(first: ' . SHOPIFY_SYNC_IMAGES . ') { nodes { ... on MediaImage { image { url altText } } } }
               variants(first: ' . SHOPIFY_SYNC_VARIANTS . ') {
                 pageInfo { hasNextPage endCursor }
                 nodes { ' . SHOPIFY_VARIANT_FIELDS . ' }
@@ -301,6 +326,8 @@ function shopify_sync_catalog(): array
             $page = $data['products'] ?? ['nodes' => [], 'pageInfo' => ['hasNextPage' => false]];
             foreach ($page['nodes'] as $product) {
                 $stats['products']++;
+                $seenProducts[(string)$product['id']] = true;
+                $stats['images'] = ($stats['images'] ?? 0) + shopify_save_gallery($product);
                 $variants = $product['variants']['nodes'] ?? [];
                 $vInfo = $product['variants']['pageInfo'] ?? ['hasNextPage' => false];
                 while (!empty($vInfo['hasNextPage'])) {
@@ -332,6 +359,14 @@ function shopify_sync_catalog(): array
             if (!isset($seen[$r['shopify_variant_id']])) {
                 $hide->execute([(int)$r['id']]);
                 $stats['hidden']++;
+            }
+        }
+
+        // Drop galleries of products no longer in Shopify.
+        $dropImages = $pdo->prepare('DELETE FROM product_images WHERE shopify_product_id = ?');
+        foreach ($pdo->query('SELECT DISTINCT shopify_product_id FROM product_images')->fetchAll(PDO::FETCH_COLUMN) as $pid) {
+            if (!isset($seenProducts[$pid])) {
+                $dropImages->execute([$pid]);
             }
         }
 
