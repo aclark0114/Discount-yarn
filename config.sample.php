@@ -1,0 +1,52 @@
+<?php
+// Copy this file to config.php on the server and fill in real values.
+// config.php is gitignored and excluded from deploy. Never commit it.
+
+return [
+    // Store identity
+    'store_name'    => 'Discount Yarn',
+    'tagline'       => 'Good yarn. Better prices.',
+    'base_url'      => 'https://www.example.com',   // no trailing slash
+    'support_email' => 'hello@example.com',          // shown to shoppers, reply-to on emails
+    'owner_email'   => 'orders@example.com',         // gets a copy of every new order
+
+    // MySQL (create the database and user in cPanel > MySQL Databases)
+    'db' => [
+        'dsn'  => 'mysql:host=localhost;dbname=CHANGE_ME;charset=utf8mb4',
+        'user' => 'CHANGE_ME',
+        'pass' => 'CHANGE_ME',
+    ],
+
+    // Stripe (Leafwood Advisory account). Use a restricted key with write
+    // access to Checkout Sessions only. The webhook secret comes from the
+    // endpoint you add in Stripe for https://<domain>/webhook.php
+    'stripe' => [
+        'secret_key'     => 'rk_live_CHANGE_ME',
+        'webhook_secret' => 'whsec_CHANGE_ME',
+        // Shown on the shopper's card statement (max 22 chars, letters/numbers/spaces).
+        'statement_descriptor_suffix' => 'DISCOUNT YARN',
+        // Turn on only after Stripe Tax is set up on the account.
+        'automatic_tax'  => false,
+    ],
+
+    // Postmark: the new server for this store. Server API token, not the account token.
+    'postmark' => [
+        'server_token'   => 'CHANGE_ME',
+        'from'           => 'Discount Yarn <orders@example.com>',  // must be a verified sender signature or domain
+        'message_stream' => 'outbound',
+    ],
+
+    // Shipping (US only to start). Amounts in cents.
+    'shipping' => [
+        'countries'        => ['US'],
+        'flat_rate_cents'  => 695,
+        'free_over_cents'  => 7500,
+    ],
+
+    // Admin login. Generate a hash with:
+    //   php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'
+    'admin' => [
+        'username'      => 'admin',
+        'password_hash' => 'CHANGE_ME',
+    ],
+];

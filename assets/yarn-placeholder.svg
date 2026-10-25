@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Yarn photo coming soon">
+  <rect width="600" height="600" fill="#efe5d3"/>
+  <g transform="translate(300 290)" fill="none" stroke="#c9b79c" stroke-width="10" stroke-linecap="round">
+    <circle r="120" fill="#e3d4bb"/>
+    <path d="M-110 -45c70 30 150 30 215 0M-118 10c80 30 160 30 236 0M-100 65c65 25 135 25 200 0"/>
+    <path d="M-60 -105c45 60 60 140 40 215M15 -118c40 70 45 160 10 235"/>
+    <path d="M110 70c40 30 70 40 110 30" />
+  </g>
+  <text x="300" y="480" text-anchor="middle" font-family="Georgia, serif" font-size="26" fill="#8a7b67">Photo coming soon</text>
+</svg>

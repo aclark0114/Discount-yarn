@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 420" role="img" aria-label="Three balls of yarn in a basket">
+  <defs>
+    <clipPath id="b1"><circle cx="160" cy="215" r="95"/></clipPath>
+    <clipPath id="b2"><circle cx="330" cy="190" r="110"/></clipPath>
+    <clipPath id="b3"><circle cx="255" cy="290" r="80"/></clipPath>
+  </defs>
+  <ellipse cx="260" cy="380" rx="220" ry="22" fill="#e6dccb"/>
+  <circle cx="330" cy="190" r="110" fill="#2f5d50"/>
+  <g clip-path="url(#b2)" fill="none" stroke="#3f7566" stroke-width="7" stroke-linecap="round">
+    <path d="M215 140c70 35 160 35 230 0M215 190c70 35 160 35 230 0M215 240c70 35 160 35 230 0"/>
+    <path d="M285 80c45 70 55 160 20 230M355 80c40 70 45 160 5 230"/>
+  </g>
+  <circle cx="160" cy="215" r="95" fill="#a63d40"/>
+  <g clip-path="url(#b1)" fill="none" stroke="#bd5457" stroke-width="7" stroke-linecap="round">
+    <path d="M60 170c60 30 140 30 200 0M60 220c60 30 140 30 200 0M60 270c60 30 140 30 200 0"/>
+    <path d="M120 115c40 60 45 140 10 200"/>
+  </g>
+  <circle cx="255" cy="290" r="80" fill="#d9a441"/>
+  <g clip-path="url(#b3)" fill="none" stroke="#e7bb64" stroke-width="6" stroke-linecap="round">
+    <path d="M170 255c55 25 120 25 170 0M170 300c55 25 120 25 170 0"/>
+    <path d="M225 210c35 50 40 115 10 170M285 210c30 55 30 120 0 170"/>
+  </g>
+  <path d="M325 300c40 20 70 60 120 70s60-10 60-10" fill="none" stroke="#d9a441" stroke-width="5" stroke-linecap="round"/>
+  <g stroke="#8a6f52" stroke-width="6" stroke-linecap="round">
+    <line x1="395" y1="60" x2="470" y2="250"/>
+    <line x1="420" y1="50" x2="455" y2="255"/>
+  </g>
+  <circle cx="395" cy="60" r="8" fill="#8a6f52"/>
+  <circle cx="420" cy="50" r="8" fill="#8a6f52"/>
+</svg>

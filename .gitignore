@@ -1,0 +1,11 @@
+# Server-only secrets
+config.php
+
+# Product photos uploaded through the admin live only on the server
+uploads/*
+!uploads/.htaccess
+
+error_log
+*.bak
+*.zip
+.DS_Store
