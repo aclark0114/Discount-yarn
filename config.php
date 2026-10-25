@@ -12,9 +12,9 @@ return [
 
     // MySQL (create the database and user in cPanel > MySQL Databases)
     'db' => [
-        'dsn'  => 'mysql:host=localhost;dbname=CHANGE_ME;charset=utf8mb4',
-        'user' => 'CHANGE_ME',
-        'pass' => 'CHANGE_ME',
+        'dsn'  => 'mysql:host=localhost;dbname=Discount-Yarn;charset=utf8mb4',
+        'user' => 'AndrewC',
+        'pass' => '9BjaKSo?[tg+lDtz',
     ],
 
     // Stripe (Leafwood Advisory account). Use a restricted key with write
