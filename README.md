@@ -32,6 +32,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
    - `admin.password_hash`: run `php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'` (cPanel Terminal works) and paste the result.
 6. **Stripe (Leafwood account).**
    - Developers > API keys > Create restricted key. Give it **Write** on *Checkout Sessions* and nothing else. Put it in `stripe.secret_key`.
+   - **Check it:** `/admin/stripe.php` reports whether each key looks right: the right kind, not the masked dashboard copy, both keys in the same mode. It also checks that Stripe accepts the secret key. Only each key's type, mode and last 4 characters are shown. Stray spaces, line breaks or quotes pasted around a key are ignored.
    - Copy the **publishable key** (`pk_live_...`, same page) into `stripe.publishable_key`. With it, the payment form appears on discount-yarn.com/checkout.php (Stripe Embedded Checkout). Without it, shoppers are sent to Stripe's own hosted page instead.
    - Developers > Webhooks > Add endpoint: `https://discount-yarn.com/webhook.php`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`. Copy the signing secret into `stripe.webhook_secret`.
    - Every store payment is tagged with `metadata.store = discount-yarn` and described as "Discount Yarn order #...", so it's easy to tell apart from Leafwood client invoices in Stripe. The webhook ignores anything without that tag.

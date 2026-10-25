@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     <h1>Checkout</h1>
     <a href="/cart.php">Back to cart</a>
   </div>
-  <div id="checkout" class="checkout-form" data-pk="<?= e(config('stripe.publishable_key')) ?>" data-secret="<?= e($co['secret']) ?>">
+  <div id="checkout" class="checkout-form" data-pk="<?= e(stripe_key('publishable_key')) ?>" data-secret="<?= e($co['secret']) ?>">
     <p class="muted" id="checkout-loading">Loading the secure payment form...</p>
   </div>
   <noscript><p class="notice">The payment form needs JavaScript. Please turn it on, or email <?= e(config('support_email')) ?> to order.</p></noscript>

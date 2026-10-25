@@ -5,6 +5,12 @@
 
 declare(strict_types=1);
 
+// Keys from config with stray spaces, line breaks or quotes from copy and paste removed.
+function stripe_key(string $name): string
+{
+    return trim((string)config('stripe.' . $name, ''), " \t\n\r\0\x0B\"'");
+}
+
 function stripe_request(string $method, string $path, array $params = []): array
 {
     // Local tests point this at a mock server. Never set on the live site.
@@ -21,7 +27,7 @@ function stripe_request(string $method, string $path, array $params = []): array
     }
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_USERPWD        => config('stripe.secret_key') . ':',
+        CURLOPT_USERPWD        => stripe_key('secret_key') . ':',
         CURLOPT_HTTPHEADER     => $headers,
         CURLOPT_TIMEOUT        => 30,
     ]);

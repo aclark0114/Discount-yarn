@@ -50,7 +50,7 @@ function create_pending_order(array $lines): array
 // publishable key is configured, otherwise Stripe's hosted page.
 function checkout_embedded(): bool
 {
-    $pk = trim((string)config('stripe.publishable_key', ''));
+    $pk = stripe_key('publishable_key');
     return $pk !== '' && !str_contains($pk, 'CHANGE_ME');
 }
 

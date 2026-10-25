@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $payload = file_get_contents('php://input') ?: '';
-$event = stripe_verify_webhook($payload, $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '', (string)config('stripe.webhook_secret'));
+$event = stripe_verify_webhook($payload, $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '', stripe_key('webhook_secret'));
 if ($event === null) {
     http_response_code(400);
     exit('Bad signature');
