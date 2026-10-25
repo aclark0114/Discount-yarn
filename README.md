@@ -1,13 +1,13 @@
 # Discount Yarn store
 
-A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, and pay on Stripe Checkout (the Leafwood Advisory Stripe account). Stock drops automatically when Stripe confirms payment. Order emails go out through a dedicated Postmark server. Products, photos, prices and stock are copied from the Stars Hollow Shopify store every 15 minutes; Shopify is never involved in checkout. A password-protected admin lives at `/admin/`.
+A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, and pay in Stripe's Embedded Checkout form on the site's own checkout page (the Leafwood Advisory Stripe account). Stock drops automatically when Stripe confirms payment. Order emails go out through a dedicated Postmark server. Products, photos, prices and stock are copied from the Stars Hollow Shopify store every 15 minutes; Shopify is never involved in checkout. A password-protected admin lives at `/admin/`.
 
 ## What's here
 
 | Path | What it does |
 | --- | --- |
 | `index.php`, `shop.php`, `product.php` | Home, catalog (search, weight/brand filters, sale filter, sorting), product page |
-| `cart.php`, `checkout.php`, `success.php` | Session cart, creates the Stripe Checkout Session, thank-you page |
+| `cart.php`, `checkout.php`, `success.php` | Session cart, checkout page with Stripe's embedded payment form, thank-you page |
 | `webhook.php` | Stripe webhook: marks orders paid, takes stock, sends emails |
 | `about.php`, `shipping.php`, `sitemap.php`, `robots.txt` | Info pages and SEO |
 | `admin/` | Login, products (quick stock edits), add/edit product with photo, CSV import, orders, mark shipped |
@@ -32,6 +32,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
    - `admin.password_hash`: run `php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'` (cPanel Terminal works) and paste the result.
 6. **Stripe (Leafwood account).**
    - Developers > API keys > Create restricted key. Give it **Write** on *Checkout Sessions* and nothing else. Put it in `stripe.secret_key`.
+   - Copy the **publishable key** (`pk_live_...`, same page) into `stripe.publishable_key`. With it, the payment form appears on discount-yarn.com/checkout.php (Stripe Embedded Checkout). Without it, shoppers are sent to Stripe's own hosted page instead.
    - Developers > Webhooks > Add endpoint: `https://discount-yarn.com/webhook.php`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`. Copy the signing secret into `stripe.webhook_secret`.
    - Every store payment is tagged with `metadata.store = discount-yarn` and described as "Discount Yarn order #...", so it's easy to tell apart from Leafwood client invoices in Stripe. The webhook ignores anything without that tag.
    - Optional: set `statement_descriptor_suffix` so card statements read e.g. `LEAFWOOD* DISCOUNT YARN`.
@@ -87,7 +88,8 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
 
 ## How an order flows
 
-1. Checkout re-reads prices and stock from the database (never from the browser), saves a `pending` order, and sends the shopper to Stripe.
+1. Checkout re-reads prices and stock from the database (never from the browser), saves a `pending` order, and shows Stripe's payment form on `/checkout.php`. If the cart changes before paying, the shopper is sent back to the cart and a fresh checkout starts.
+   - **If checkout can't start:** shoppers see a generic message. A logged-in admin sees Stripe's exact error in the same message, and it's also written to the server's error_log.
 2. When Stripe reports payment, `webhook.php` (or the thank-you page, if it lands first) marks the order `paid`, subtracts stock and emails the shopper and `owner_email`. Duplicate Stripe events are ignored.
 3. If two people buy the last skein at the same moment, the order is flagged **oversold** in admin and in the owner email so you can refund the short item in Stripe.
 4. In admin, open the order, add tracking, and click Mark as shipped to email the shopper.

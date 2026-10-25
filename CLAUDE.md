@@ -19,7 +19,7 @@ PHP 8 + MySQL yarn shop on GoDaddy cPanel. Stripe Checkout (Leafwood Advisory's 
 - Store pages never call Shopify; only cron, admin and checkout do.
 - Admin API auth is the OAuth authorization code grant only (`shopify/install.php`, `shopify/callback.php`); the offline token lives in `shopify_token.json` next to the config, outside public_html, and is never printed or logged. Storefront calls use `shopify.storefront_token` from config.
 - `shopify_storefront_only()` (no saved Admin token yet) routes sync and live checks through the Storefront API; `shopify_can_push_stock()` (token has write_inventory) gates the stock push. Keep both paths working.
-- Checkout Sessions carry `metadata.store = discount-yarn`; the webhook ignores sessions without it because the Stripe account is shared with Leafwood.
+- Checkout is Stripe Embedded Checkout (`ui_mode=embedded`, `assets/checkout.js`) when `stripe.publishable_key` is set, Stripe-hosted otherwise. Checkout Sessions carry `metadata.store = discount-yarn`; the webhook ignores sessions without it because the Stripe account is shared with Leafwood.
 - Schema changes go in a new `schema_vN_*.sql` file run by hand in phpMyAdmin. SQL in pages must also run on SQLite (used for local testing).
 - Cron scripts run under `php -q` and exit if called over the web (see `cron/expire_pending.php`).
 - Bump `ASSET_VERSION` in `includes/layout.php` when `assets/styles.css` or `assets/script.js` changes.

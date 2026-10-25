@@ -46,13 +46,20 @@ function create_pending_order(array $lines): array
     return order_by_id($orderId);
 }
 
+// Embedded Checkout (the payment form on our own checkout page) when a
+// publishable key is configured, otherwise Stripe's hosted page.
+function checkout_embedded(): bool
+{
+    $pk = trim((string)config('stripe.publishable_key', ''));
+    return $pk !== '' && !str_contains($pk, 'CHANGE_ME');
+}
+
 function create_checkout_session(array $order, array $lines): array
 {
+    $returnUrl = url('success.php?order=' . $order['public_id'] . '&session_id={CHECKOUT_SESSION_ID}');
     $params = [
         'mode'                => 'payment',
         'client_reference_id' => $order['public_id'],
-        'success_url'         => url('success.php?order=' . $order['public_id'] . '&session_id={CHECKOUT_SESSION_ID}'),
-        'cancel_url'          => url('cart.php'),
         'expires_at'          => time() + 3600,
         'metadata'            => ['store' => STORE_METADATA_KEY, 'order' => $order['public_id']],
         'payment_intent_data' => [
@@ -95,6 +102,13 @@ function create_checkout_session(array $order, array $lines): array
     ]];
     if (config('stripe.automatic_tax')) {
         $params['automatic_tax'] = ['enabled' => 'true'];
+    }
+    if (checkout_embedded()) {
+        $params['ui_mode'] = 'embedded';
+        $params['return_url'] = $returnUrl;
+    } else {
+        $params['success_url'] = $returnUrl;
+        $params['cancel_url'] = url('cart.php');
     }
 
     $session = stripe_request('POST', 'checkout/sessions', $params);

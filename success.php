@@ -24,6 +24,7 @@ if ($order['status'] === 'pending') {
 }
 
 cart_clear();
+unset($_SESSION['checkout']);
 $paid = in_array($order['status'], ['paid', 'shipped'], true);
 $items = order_items_for((int)$order['id']);
 

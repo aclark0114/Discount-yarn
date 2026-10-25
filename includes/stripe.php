@@ -1,13 +1,15 @@
 <?php
 // Minimal Stripe API client over curl, so the store needs no Composer install
-// on cPanel. Card data never touches this server: shoppers pay on Stripe's
-// hosted Checkout page.
+// on cPanel. Card data never touches this server: shoppers pay in Stripe's
+// Embedded Checkout form on our checkout page (or Stripe's hosted page).
 
 declare(strict_types=1);
 
 function stripe_request(string $method, string $path, array $params = []): array
 {
-    $ch = curl_init('https://api.stripe.com/v1/' . ltrim($path, '/'));
+    // Local tests point this at a mock server. Never set on the live site.
+    $base = rtrim(getenv('STRIPE_TEST_BASE') ?: 'https://api.stripe.com', '/') . '/v1/';
+    $ch = curl_init($base . ltrim($path, '/'));
     $headers = ['Stripe-Version: 2024-06-20'];
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
@@ -15,7 +17,7 @@ function stripe_request(string $method, string $path, array $params = []): array
         // Retries of the same request body are safe.
         $headers[] = 'Idempotency-Key: ' . hash('sha256', $path . serialize($params));
     } elseif ($params) {
-        curl_setopt($ch, CURLOPT_URL, 'https://api.stripe.com/v1/' . ltrim($path, '/') . '?' . http_build_query($params));
+        curl_setopt($ch, CURLOPT_URL, $base . ltrim($path, '/') . '?' . http_build_query($params));
     }
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -34,7 +36,8 @@ function stripe_request(string $method, string $path, array $params = []): array
     $data = json_decode((string)$body, true);
     if ($status >= 400 || !is_array($data)) {
         $msg = $data['error']['message'] ?? ('HTTP ' . $status);
-        throw new RuntimeException('Stripe error: ' . $msg);
+        $param = $data['error']['param'] ?? '';
+        throw new RuntimeException('Stripe error: ' . $msg . ($param !== '' ? ' (field: ' . $param . ')' : ''));
     }
     return $data;
 }

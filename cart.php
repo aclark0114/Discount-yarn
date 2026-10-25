@@ -90,7 +90,7 @@ page_header('Your cart');
         <?= csrf_field() ?>
         <button class="btn btn-block" type="submit">Check out securely</button>
       </form>
-      <p class="muted small">You'll pay on Stripe's secure checkout page. Tax, if any, is added there.</p>
+      <p class="muted small">Pay securely by card on the next page. Shipping address and tax, if any, are added there.</p>
     </div>
   <?php endif; ?>
 </div>

@@ -48,6 +48,9 @@ return [
     // endpoint you add in Stripe for https://discount-yarn.com/webhook.php
     'stripe' => [
         'secret_key'     => 'rk_live_CHANGE_ME',
+        // Publishable key (pk_live_... or pk_test_...) for the payment form on
+        // our checkout page. Blank sends shoppers to Stripe's hosted page instead.
+        'publishable_key' => 'pk_live_CHANGE_ME',
         'webhook_secret' => 'whsec_CHANGE_ME',
         // Shown on the shopper's card statement (max 22 chars, letters/numbers/spaces).
         'statement_descriptor_suffix' => 'DISCOUNT YARN',

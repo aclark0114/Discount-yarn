@@ -232,6 +232,9 @@ p { margin: 0 0 1em; }
   .cart-summary { max-width: none; }
 }
 
+.checkout-form { min-height: 420px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; margin: 8px 0 16px; }
+@media (max-width: 640px) { .checkout-form { padding: 4px; border: 0; background: transparent; } }
+
 .order-items { list-style: none; padding: 0; margin: 24px 0; border-top: 1px solid var(--line); }
 .order-items li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .order-items .total { font-weight: 700; }
