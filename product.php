@@ -1,13 +1,24 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/layout.php';
+require __DIR__ . '/includes/catalog.php';
 
+// One page per product. The slug is the group's (Shopify handle or the
+// yarn's own slug); an old per-colorway slug still lands on its group.
 $slug = isset($_GET['slug']) && is_string($_GET['slug']) ? $_GET['slug'] : '';
-$st = db()->prepare('SELECT * FROM products WHERE slug = ? AND is_active = 1');
-$st->execute([$slug]);
-$p = $st->fetch();
+$variants = catalog_group_variants($slug);
+$wanted = (int)($_GET['v'] ?? 0);
+if (!$variants) {
+    $st = db()->prepare('SELECT id, group_slug FROM products WHERE slug = ? AND is_active = 1');
+    $st->execute([$slug]);
+    if ($row = $st->fetch()) {
+        $slug = (string)$row['group_slug'];
+        $wanted = $wanted ?: (int)$row['id'];
+        $variants = catalog_group_variants($slug);
+    }
+}
 
-if (!$p) {
+if (!$variants) {
     http_response_code(404);
     page_header('Not found');
     echo '<div class="wrap section"><h1>We couldn\'t find that yarn</h1><p>It may have sold out and been retired. <a href="/shop.php">Browse what\'s in stock</a>.</p></div>';
@@ -15,27 +26,34 @@ if (!$p) {
     exit;
 }
 
+// Selected colorway: the one asked for if it's in stock, else the first in stock.
+$p = $variants[0];
+foreach ($variants as $v) {
+    if ((int)$v['id'] === $wanted && ((int)$v['stock'] > 0 || (int)$p['stock'] <= 0)) {
+        $p = $v;
+        break;
+    }
+}
+$cart = cart_raw();
+$multi = count($variants) > 1;
+$anyInStock = (int)$variants[0]['stock'] > 0;
 $stock = (int)$p['stock'];
 $off = percent_off($p);
-$inCart = (int)(cart_raw()[$p['id']] ?? 0);
+$inCart = (int)($cart[$p['id']] ?? 0);
 
-$rand = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite' ? 'RANDOM()' : 'RAND()';
-$related = db()->prepare("SELECT * FROM products WHERE is_active = 1 AND stock > 0 AND id <> ? AND (brand = ? OR weight = ?) ORDER BY $rand LIMIT 4");
-$related->execute([$p['id'], $p['brand'], $p['weight']]);
-$related = $related->fetchAll();
+$related = catalog_groups(['is_active = 1', 'stock > 0', 'group_slug <> ?', '(brand = ? OR weight = ?)'], [$slug, $p['brand'], $p['weight']], 'random', 4);
 
 $specs = array_filter([
     'Brand'    => $p['brand'],
     'Weight'   => $p['weight'],
     'Fiber'    => $p['fiber'],
-    'Colorway' => $p['colorway'],
     'Yardage'  => $p['yardage'] ? number_format((int)$p['yardage']) . ' yd' : '',
     'Skein'    => $p['grams'] ? (int)$p['grams'] . ' g' : '',
-    'SKU'      => $p['sku'],
 ]);
 
-$title = $p['name'] . ($p['colorway'] ? ' in ' . $p['colorway'] : '');
-page_header($title, mb_substr(strip_tags((string)$p['description']) ?: $title, 0, 155));
+$prices = array_map('effective_price', $variants);
+$canonical = url(group_url($slug));
+page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['name'] . ' yarn at discount prices.', 0, 155), '', $canonical);
 ?>
 <div class="wrap section product">
   <nav class="crumbs" aria-label="Breadcrumb"><a href="/shop.php">Shop</a>
@@ -43,34 +61,57 @@ page_header($title, mb_substr(strip_tags((string)$p['description']) ?: $title, 0
   </nav>
   <div class="product-grid">
     <div class="product-img">
-      <img src="<?= e(product_image($p)) ?>" alt="<?= e($title) ?>" width="800" height="800">
-      <?php if ($off > 0): ?><span class="badge"><?= $off ?>% off</span><?php endif; ?>
+      <img id="main-img" src="<?= e(product_image($p)) ?>" alt="<?= e($p['name'] . ($p['colorway'] ? ', ' . $p['colorway'] : '')) ?>" width="800" height="800">
+      <span class="badge" id="off-badge"<?= $off > 0 ? '' : ' hidden' ?>><?= $off ?>% off</span>
     </div>
     <div class="product-info">
       <?php if ($p['brand']): ?><p class="card-brand"><?= e($p['brand']) ?></p><?php endif; ?>
       <h1><?= e($p['name']) ?></h1>
-      <?php if ($p['colorway']): ?><p class="colorway"><?= e($p['colorway']) ?></p><?php endif; ?>
+      <p class="colorway" id="colorway-name"<?= $p['colorway'] ? '' : ' hidden' ?>><?= e($p['colorway']) ?></p>
       <p class="price price-lg">
-        <?php if ($off > 0): ?><s><?= money((int)$p['price_cents']) ?></s> <?php endif; ?>
-        <span><?= money(effective_price($p)) ?></span>
-        <?php if ($off > 0): ?><small>You save <?= money((int)$p['price_cents'] - effective_price($p)) ?></small><?php endif; ?>
+        <s id="price-was"<?= $off > 0 ? '' : ' hidden' ?>><?= money((int)$p['price_cents']) ?></s>
+        <span id="price-now"><?= money(effective_price($p)) ?></span>
+        <small id="price-save"<?= $off > 0 ? '' : ' hidden' ?>>You save <?= money((int)$p['price_cents'] - effective_price($p)) ?></small>
       </p>
 
-      <?php if ($stock > 0): ?>
-        <p class="stock <?= $stock <= 5 ? 'stock-low' : '' ?>"><?= $stock <= 5 ? 'Only ' . $stock . ' left' : 'In stock' ?></p>
-        <form class="add-form" method="post" action="/cart.php">
+      <?php if ($anyInStock): ?>
+        <form class="add-form" method="post" action="/cart.php" id="add-form">
           <?= csrf_field() ?>
           <input type="hidden" name="action" value="add">
-          <input type="hidden" name="product_id" value="<?= (int)$p['id'] ?>">
+          <?php if ($multi): ?>
+            <fieldset class="swatches">
+              <legend>Colorway <span class="muted">(<?= count($variants) ?>)</span></legend>
+              <?php foreach ($variants as $v):
+                  $vs = (int)$v['stock'];
+                  $vc = (int)($cart[$v['id']] ?? 0); ?>
+                <label class="swatch<?= $vs <= 0 ? ' swatch-out' : '' ?>"
+                  data-name="<?= e($v['colorway'] ?: $v['name']) ?>"
+                  data-image="<?= e(product_image($v)) ?>"
+                  data-now="<?= e(money(effective_price($v))) ?>"
+                  data-was="<?= percent_off($v) > 0 ? e(money((int)$v['price_cents'])) : '' ?>"
+                  data-save="<?= percent_off($v) > 0 ? e(money((int)$v['price_cents'] - effective_price($v))) : '' ?>"
+                  data-off="<?= percent_off($v) ?>"
+                  data-stock="<?= $vs ?>" data-incart="<?= $vc ?>" data-sku="<?= e($v['sku']) ?>">
+                  <input type="radio" name="product_id" value="<?= (int)$v['id'] ?>"<?= (int)$v['id'] === (int)$p['id'] ? ' checked' : '' ?><?= $vs <= 0 ? ' disabled' : '' ?>>
+                  <img src="<?= e(product_image($v, 120)) ?>" alt="" width="56" height="56" loading="lazy">
+                  <span class="swatch-name"><?= e($v['colorway'] ?: 'Standard') ?></span>
+                  <span class="swatch-note"><?= $vs <= 0 ? 'Sold out' : ($vs <= 5 ? 'Only ' . $vs . ' left' : '') ?></span>
+                </label>
+              <?php endforeach; ?>
+            </fieldset>
+          <?php else: ?>
+            <input type="hidden" name="product_id" value="<?= (int)$p['id'] ?>">
+          <?php endif; ?>
+          <p class="stock <?= $stock <= 5 ? 'stock-low' : '' ?>" id="stock-note"><?= $stock <= 5 ? 'Only ' . $stock . ' left' : 'In stock' ?></p>
           <label for="qty">Skeins</label>
           <div class="qty">
             <button type="button" data-step="-1" aria-label="Fewer">&minus;</button>
             <input id="qty" name="qty" type="number" min="1" max="<?= max(1, $stock - $inCart) ?>" value="1" inputmode="numeric">
             <button type="button" data-step="1" aria-label="More">+</button>
           </div>
-          <button class="btn" type="submit"<?= $inCart >= $stock ? ' disabled' : '' ?>>Add to cart</button>
+          <button class="btn" type="submit" id="add-btn"<?= $inCart >= $stock ? ' disabled' : '' ?>>Add to cart</button>
         </form>
-        <?php if ($inCart > 0): ?><p class="muted"><?= $inCart ?> already in your <a href="/cart.php">cart</a>.</p><?php endif; ?>
+        <p class="muted" id="in-cart"<?= $inCart > 0 ? '' : ' hidden' ?>><span><?= $inCart ?></span> already in your <a href="/cart.php">cart</a>.</p>
       <?php else: ?>
         <p class="stock stock-out">Sold out</p>
       <?php endif; ?>
@@ -83,8 +124,9 @@ page_header($title, mb_substr(strip_tags((string)$p['description']) ?: $title, 0
         <?php foreach ($specs as $k => $v): ?>
           <dt><?= e($k) ?></dt><dd><?= e($v) ?></dd>
         <?php endforeach; ?>
+        <dt>SKU</dt><dd id="sku"><?= e($p['sku']) ?></dd>
       </dl>
-      <p class="muted small">Closeout yarn is final sale unless it arrives damaged. All skeins in one order come from the same dye lot.</p>
+      <p class="muted small">Closeout yarn is final sale unless it arrives damaged. All skeins of one colorway in an order come from the same dye lot.</p>
     </div>
   </div>
 </div>
@@ -93,7 +135,7 @@ page_header($title, mb_substr(strip_tags((string)$p['description']) ?: $title, 0
 <section class="wrap section">
   <div class="section-head"><h2>You might also like</h2></div>
   <div class="grid">
-    <?php foreach ($related as $r) { product_card($r); } ?>
+    <?php foreach ($related as $g) { group_card($g); } ?>
   </div>
 </section>
 <?php endif; ?>
@@ -101,16 +143,17 @@ page_header($title, mb_substr(strip_tags((string)$p['description']) ?: $title, 0
 <script type="application/ld+json"><?= json_encode([
     '@context' => 'https://schema.org',
     '@type' => 'Product',
-    'name' => $title,
-    'sku' => $p['sku'],
+    'name' => $p['name'],
     'brand' => $p['brand'] ? ['@type' => 'Brand', 'name' => $p['brand']] : null,
     'image' => str_starts_with(product_image($p), 'http') ? product_image($p) : url(product_image($p)),
     'offers' => [
-        '@type' => 'Offer',
-        'price' => number_format(effective_price($p) / 100, 2, '.', ''),
+        '@type' => 'AggregateOffer',
+        'lowPrice' => number_format(min($prices) / 100, 2, '.', ''),
+        'highPrice' => number_format(max($prices) / 100, 2, '.', ''),
+        'offerCount' => count($variants),
         'priceCurrency' => 'USD',
-        'availability' => $stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
-        'url' => url('product.php?slug=' . rawurlencode($p['slug'])),
+        'availability' => $anyInStock ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+        'url' => $canonical,
     ],
 ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
 <?php page_footer();

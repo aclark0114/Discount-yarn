@@ -56,7 +56,7 @@ page_header('Your cart');
           <li class="cart-line">
             <img src="<?= e(product_image($p, 200)) ?>" alt="" width="96" height="96" loading="lazy">
             <div class="cart-line-info">
-              <a href="/product.php?slug=<?= e(rawurlencode($p['slug'])) ?>"><?= e($p['name']) ?></a>
+              <a href="/product.php?slug=<?= e(rawurlencode((string)($p['group_slug'] ?: $p['slug']))) ?>&amp;v=<?= (int)$p['id'] ?>"><?= e($p['name']) ?></a>
               <span class="muted"><?= e(implode(' · ', array_filter([$p['brand'], $p['colorway']]))) ?></span>
               <span><?= money($l['unit']) ?> each</span>
             </div>

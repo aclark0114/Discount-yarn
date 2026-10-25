@@ -24,6 +24,37 @@
     });
   });
 
+  // Colorway picker on the product page: swap photo, price and stock.
+  var form = document.getElementById('add-form');
+  if (form && form.querySelector('.swatches')) {
+    var $ = function (id) { return document.getElementById(id); };
+    var show = function (el, text) { if (!el) return; el.hidden = !text; if (text) el.textContent = text; };
+    var update = function () {
+      var radio = form.querySelector('input[name="product_id"]:checked');
+      if (!radio) return;
+      var d = radio.closest('.swatch').dataset;
+      var stock = parseInt(d.stock, 10), inCart = parseInt(d.incart, 10);
+      $('main-img').src = d.image;
+      $('main-img').alt = d.name;
+      show($('colorway-name'), d.name);
+      $('price-now').textContent = d.now;
+      show($('price-was'), d.was);
+      show($('price-save'), d.save ? 'You save ' + d.save : '');
+      show($('off-badge'), d.off !== '0' ? d.off + '% off' : '');
+      $('sku').textContent = d.sku;
+      var note = $('stock-note');
+      note.textContent = stock <= 5 ? 'Only ' + stock + ' left' : 'In stock';
+      note.classList.toggle('stock-low', stock <= 5);
+      var qty = $('qty');
+      qty.max = Math.max(1, stock - inCart);
+      if (parseInt(qty.value, 10) > qty.max) qty.value = qty.max;
+      $('add-btn').disabled = inCart >= stock;
+      var ic = $('in-cart');
+      if (ic) { ic.hidden = inCart === 0; ic.querySelector('span').textContent = inCart; }
+    };
+    form.addEventListener('change', function (ev) { if (ev.target.name === 'product_id') update(); });
+  }
+
   // Gentle fade-in for marked sections
   var items = document.querySelectorAll('.reveal');
   if (!('IntersectionObserver' in window)) {

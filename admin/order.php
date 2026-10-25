@@ -11,6 +11,12 @@ if (!$order) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
+    if (isset($_POST['push_stock'])) {
+        flash(shopify_push_order_inventory($id)
+            ? 'Stock subtracted in Shopify.'
+            : 'Shopify stock not updated: ' . ((string)(order_by_id($id)['inventory_push_error'] ?? '') ?: 'nothing to push.'));
+        redirect('/admin/order.php?id=' . $id);
+    }
     $notes = trim((string)($_POST['admin_notes'] ?? ''));
     $tracking = trim((string)($_POST['tracking_number'] ?? ''));
     if (isset($_POST['ship']) && $order['status'] === 'paid') {
@@ -37,6 +43,18 @@ admin_header('Order #' . strtoupper($order['public_id']));
   <h1>Order #<?= e(strtoupper($order['public_id'])) ?></h1>
   <p><?= e(ucfirst($order['status'])) ?><?= $order['paid_at'] ? ', paid ' . e(date('M j, Y g:ia', strtotime($order['paid_at']))) : '' ?></p>
 </div>
+<?php if (in_array($order['status'], ['paid', 'shipped'], true)): ?>
+  <?php if ($order['inventory_pushed_at']): ?>
+    <p class="notice">Stock subtracted in Shopify <?= e(date('M j, g:ia', strtotime($order['inventory_pushed_at']))) ?>.</p>
+  <?php else: ?>
+    <form method="post" action="/admin/order.php?id=<?= $id ?>" class="error">
+      <?= csrf_field() ?>
+      Not yet subtracted in Shopify<?= $order['inventory_push_error'] ? ': ' . e($order['inventory_push_error']) : '' ?>.
+      These skeins are held back on this site until it works. The sync cron retries every 15 minutes.
+      <button type="submit" name="push_stock" value="1">Retry now</button>
+    </form>
+  <?php endif; ?>
+<?php endif; ?>
 <?php if ($order['oversold']): ?>
   <p class="error">At least one item sold more than was in stock. Check the shelf before packing, and refund the short item in Stripe if needed.</p>
 <?php endif; ?>

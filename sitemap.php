@@ -6,7 +6,7 @@ $urls = ['', 'shop.php', 'shop.php?sale=1', 'about.php', 'shipping.php'];
 foreach (YARN_WEIGHTS as $w) {
     $urls[] = 'shop.php?weight=' . rawurlencode($w);
 }
-$products = db()->query('SELECT slug, updated_at FROM products WHERE is_active = 1 ORDER BY id')->fetchAll();
+$products = db()->query('SELECT group_slug AS slug, MAX(updated_at) AS updated_at FROM products WHERE is_active = 1 GROUP BY group_slug ORDER BY MIN(id)')->fetchAll();
 
 echo '<?xml version="1.0" encoding="UTF-8"?>', "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', "\n";

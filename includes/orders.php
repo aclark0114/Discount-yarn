@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/postmark.php';
+require_once __DIR__ . '/shopify_sync.php';
 
 // Tags every Checkout Session so the webhook can ignore the Leafwood
 // account's other payments.
@@ -184,7 +185,14 @@ function fulfill_from_session(array $session): ?array
     } catch (Throwable $ex) {
         error_log('Order email failed: ' . $ex->getMessage());
     }
-    return $order;
+    // Take the skeins out of Shopify. A failure is recorded on the order and
+    // retried by the sync cron; until then the skeins are held back here.
+    try {
+        shopify_push_order_inventory((int)$order['id']);
+    } catch (Throwable $ex) {
+        error_log('Shopify stock push failed: ' . $ex->getMessage());
+    }
+    return order_by_id((int)$order['id']);
 }
 
 function expire_from_session(array $session): void

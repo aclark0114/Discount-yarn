@@ -39,6 +39,7 @@ function admin_header(string $title): void
     <a href="/admin/product_edit.php">Add product</a>
     <a href="/admin/import.php">CSV import</a>
     <a href="/admin/orders.php">Orders</a>
+    <a href="/admin/pricing.php">Pricing</a>
     <a href="/admin/shopify.php">Shopify</a>
     <a href="/" target="_blank" rel="noopener">View store</a>
     <a href="/admin/logout.php">Log out</a>

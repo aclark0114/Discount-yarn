@@ -108,6 +108,10 @@ function save_product(array $cols, ?int $id = null): int
 {
     $pdo = db();
     $cols['slug'] = unique_slug($cols['name'] . ' ' . $cols['colorway'] . ' ' . $cols['brand'], $id);
+    if (!array_key_exists('group_slug', $cols)) {
+        // Yarn added in admin is its own group.
+        $cols['group_slug'] = $cols['slug'];
+    }
     if ($id) {
         $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($cols)));
         $pdo->prepare("UPDATE products SET $sets, updated_at = CURRENT_TIMESTAMP WHERE id = ?")

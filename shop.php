@@ -1,20 +1,16 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/layout.php';
+require __DIR__ . '/includes/catalog.php';
 
 $weight = isset($_GET['weight']) && in_array($_GET['weight'], YARN_WEIGHTS, true) ? $_GET['weight'] : '';
 $brand  = isset($_GET['brand']) && is_string($_GET['brand']) ? trim($_GET['brand']) : '';
 $q      = isset($_GET['q']) && is_string($_GET['q']) ? trim(mb_substr($_GET['q'], 0, 80)) : '';
 $sale   = !empty($_GET['sale']);
 $instock = !empty($_GET['instock']);
-$sorts = [
-    'featured'   => 'is_featured DESC, created_at DESC',
-    'new'        => 'created_at DESC',
-    'price-asc'  => 'COALESCE(NULLIF(sale_price_cents, 0), price_cents) ASC',
-    'price-desc' => 'COALESCE(NULLIF(sale_price_cents, 0), price_cents) DESC',
-    'name'       => 'name ASC',
-];
-$sort = isset($_GET['sort']) && isset($sorts[$_GET['sort']]) ? $_GET['sort'] : 'featured';
+$prices = ['under-10' => [0, 999], '10-20' => [1000, 1999], '20-30' => [2000, 2999], 'over-30' => [3000, PHP_INT_MAX]];
+$price  = isset($_GET['price']) && isset($prices[$_GET['price']]) ? $_GET['price'] : '';
+$sort = isset($_GET['sort']) && in_array($_GET['sort'], ['featured', 'new', 'price-asc', 'price-desc', 'name'], true) ? $_GET['sort'] : 'featured';
 
 $where = ['is_active = 1'];
 $args = [];
@@ -22,6 +18,8 @@ if ($weight !== '') { $where[] = 'weight = ?'; $args[] = $weight; }
 if ($brand !== '')  { $where[] = 'brand = ?';  $args[] = $brand; }
 if ($sale)          { $where[] = 'sale_price_cents IS NOT NULL AND sale_price_cents > 0 AND sale_price_cents < price_cents'; }
 if ($instock)       { $where[] = 'stock > 0'; }
+// Bounds come from the fixed list above, so they go in as numbers (bound strings compare as text in SQLite).
+if ($price !== '')  { $where[] = EFFECTIVE_PRICE_SQL . ' BETWEEN ' . (int)$prices[$price][0] . ' AND ' . (int)$prices[$price][1]; }
 if ($q !== '') {
     $where[] = '(name LIKE ? OR brand LIKE ? OR colorway LIKE ? OR fiber LIKE ?)';
     $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
@@ -30,17 +28,10 @@ if ($q !== '') {
 
 $perPage = 24;
 $page = max(1, (int)($_GET['page'] ?? 1));
-$whereSql = implode(' AND ', $where);
-
-$st = db()->prepare("SELECT COUNT(*) FROM products WHERE $whereSql");
-$st->execute($args);
-$total = (int)$st->fetchColumn();
+$total = catalog_group_count($where, $args);
 $pages = max(1, (int)ceil($total / $perPage));
 $page = min($page, $pages);
-
-$st = db()->prepare("SELECT * FROM products WHERE $whereSql ORDER BY (stock > 0) DESC, {$sorts[$sort]} LIMIT $perPage OFFSET " . (($page - 1) * $perPage));
-$st->execute($args);
-$products = $st->fetchAll();
+$products = catalog_groups($where, $args, $sort, $perPage, ($page - 1) * $perPage);
 
 $brands = db()->query("SELECT DISTINCT brand FROM products WHERE is_active = 1 AND brand <> '' ORDER BY brand")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -91,6 +82,13 @@ page_header($heading, 'Shop ' . strtolower($heading) . ' at discount prices.', $
       <option value="price-desc"<?= $sort === 'price-desc' ? ' selected' : '' ?>>Price, high to low</option>
       <option value="name"<?= $sort === 'name' ? ' selected' : '' ?>>Name</option>
     </select>
+    <label class="sr-only" for="price">Price</label>
+    <select id="price" name="price">
+      <option value="">Any price</option>
+      <?php foreach (['under-10' => 'Under $10', '10-20' => '$10 to $20', '20-30' => '$20 to $30', 'over-30' => '$30 and up'] as $k => $label): ?>
+        <option value="<?= $k ?>"<?= $k === $price ? ' selected' : '' ?>><?= e($label) ?></option>
+      <?php endforeach; ?>
+    </select>
     <label class="check"><input type="checkbox" name="sale" value="1"<?= $sale ? ' checked' : '' ?>> On sale</label>
     <label class="check"><input type="checkbox" name="instock" value="1"<?= $instock ? ' checked' : '' ?>> In stock</label>
     <button class="btn btn-sm" type="submit">Apply</button>
@@ -98,7 +96,7 @@ page_header($heading, 'Shop ' . strtolower($heading) . ' at discount prices.', $
 
   <?php if ($products): ?>
     <div class="grid">
-      <?php foreach ($products as $p) { product_card($p); } ?>
+      <?php foreach ($products as $g) { group_card($g); } ?>
     </div>
     <?php if ($pages > 1): ?>
       <nav class="pager" aria-label="Pages">

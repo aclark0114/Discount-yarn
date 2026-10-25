@@ -2,7 +2,6 @@
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/cart.php';
 require __DIR__ . '/includes/orders.php';
-require __DIR__ . '/includes/shopify_sync.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('/cart.php');

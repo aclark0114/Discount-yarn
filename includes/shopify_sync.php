@@ -7,11 +7,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/shopify.php';
 require_once __DIR__ . '/products.php';
+require_once __DIR__ . '/pricing.php';
+require_once __DIR__ . '/orders.php';
 
 const SHOPIFY_SYNC_PAGE = 8;       // products per request; keeps query cost under Shopify's 1,000 limit
 const SHOPIFY_SYNC_VARIANTS = 50;  // variants per product per request; more are paged
 
 const SHOPIFY_VARIANT_FIELDS = 'id sku title price compareAtPrice inventoryQuantity availableForSale
+    inventoryItem { id }
     selectedOptions { name value }
     media(first: 1) { nodes { ... on MediaImage { image { url } } } }';
 
@@ -92,16 +95,14 @@ function shopify_guess_fiber(array $product, array $variant): string
     return '';
 }
 
-// Column values for one variant. Prices: the higher of Shopify's price and
-// compare-at price is the "was" price; Shopify's price less the configured
-// markdown is what shoppers pay.
+// Column values for one variant. Prices follow the discount tiers in
+// includes/pricing.php.
 function shopify_variant_row(array $product, array $variant, int $heldBack): array
 {
     $price = (int)shopify_money_cents($variant['price']);
     $compare = shopify_money_cents($variant['compareAtPrice'] ?? null);
-    $markdown = max(0, min(90, (float)config('shopify.markdown_percent', 0)));
-    $regular = max($price, (int)$compare);
-    $ours = (int)round($price * (100 - $markdown) / 100);
+    [$pct] = discount_for((string)($product['vendor'] ?? ''), (string)($product['id'] ?? ''));
+    [$regular, $sale] = tier_prices($price, $compare, $pct);
 
     $vt = trim((string)$variant['title']);
     $colorway = $vt === 'Default Title' ? '' : $vt;
@@ -132,28 +133,131 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         'fiber'              => mb_substr(shopify_guess_fiber($product, $variant), 0, 160),
         'colorway'           => mb_substr($colorway, 0, 120),
         'description'        => (string)($product['description'] ?? ''),
-        'price_cents'        => max(1, $regular),
-        'sale_price_cents'   => $ours > 0 && $ours < $regular ? $ours : null,
+        'price_cents'        => $regular,
+        'sale_price_cents'   => $sale,
         'stock'              => max(0, $stock - $heldBack),
         'is_active'          => 1,
         'shopify_product_id' => (string)$product['id'],
         'shopify_variant_id' => (string)$variant['id'],
         'image_url'          => $image,
         'synced_at'          => date('Y-m-d H:i:s'),
+        'shopify_price_cents'       => $price,
+        'shopify_compare_cents'     => $compare,
+        'shopify_inventory_item_id' => isset($variant['inventoryItem']['id']) ? (string)$variant['inventoryItem']['id'] : null,
+        'group_slug'                => mb_substr(slugify((string)($product['handle'] ?? $product['title'] ?? '')), 0, 160),
     ];
 }
 
-// Units in paid orders that haven't shipped yet. Shopify doesn't know about
-// them, so they are held back from the Shopify count until they ship.
+// Units sold here that haven't been subtracted in Shopify yet (the push
+// failed or hasn't run). They are held back from Shopify's count.
 function shopify_units_held(): array
 {
     $rows = db()->query(
         "SELECT p.shopify_variant_id AS v, SUM(i.quantity) AS q
          FROM order_items i JOIN orders o ON o.id = i.order_id JOIN products p ON p.id = i.product_id
-         WHERE o.status = 'paid' AND p.shopify_variant_id IS NOT NULL
+         WHERE o.status IN ('paid', 'shipped') AND o.inventory_pushed_at IS NULL AND p.shopify_variant_id IS NOT NULL
          GROUP BY p.shopify_variant_id"
     )->fetchAll();
     return array_column($rows, 'q', 'v');
+}
+
+// Picks the Shopify location to take stock from: shopify.location_id when
+// set, else the location holding the most available units.
+function shopify_pick_location(string $inventoryItemId): string
+{
+    $configured = trim((string)config('shopify.location_id', ''));
+    if ($configured !== '') {
+        return $configured;
+    }
+    $d = shopify_admin_graphql(
+        'query Levels($id: ID!) { inventoryItem(id: $id) { inventoryLevels(first: 20) { nodes {
+           location { id } quantities(names: ["available"]) { name quantity } } } } }',
+        ['id' => $inventoryItemId]
+    );
+    $best = null;
+    $bestQty = PHP_INT_MIN;
+    foreach ((array)($d['inventoryItem']['inventoryLevels']['nodes'] ?? []) as $lvl) {
+        $qty = (int)($lvl['quantities'][0]['quantity'] ?? 0);
+        if ($qty > $bestQty) {
+            $best = (string)$lvl['location']['id'];
+            $bestQty = $qty;
+        }
+    }
+    if ($best === null) {
+        throw new ShopifyError('This yarn is not stocked at any Shopify location.');
+    }
+    return $best;
+}
+
+// Subtracts one order's skeins from Shopify stock (needs write_inventory).
+// Records success or the error on the order. Returns true when pushed.
+function shopify_push_order_inventory(int $orderId): bool
+{
+    $order = order_by_id($orderId);
+    if (!$order || $order['inventory_pushed_at'] !== null || !in_array($order['status'], ['paid', 'shipped'], true)) {
+        return false;
+    }
+    $st = db()->prepare(
+        'SELECT i.quantity, p.shopify_inventory_item_id AS item FROM order_items i JOIN products p ON p.id = i.product_id
+         WHERE i.order_id = ? AND p.shopify_variant_id IS NOT NULL'
+    );
+    $st->execute([$orderId]);
+    $changes = [];
+    try {
+        foreach ($st->fetchAll() as $it) {
+            if (empty($it['item'])) {
+                throw new ShopifyError('Missing Shopify inventory item. Run a catalog sync, then retry.');
+            }
+            $changes[] = [
+                'inventoryItemId'    => $it['item'],
+                'locationId'         => shopify_pick_location($it['item']),
+                'delta'              => -(int)$it['quantity'],
+                'changeFromQuantity' => null,
+            ];
+        }
+        if ($changes) {
+            $d = shopify_admin_graphql(
+                'mutation Sold($input: InventoryAdjustQuantitiesInput!, $key: String!) {
+                   inventoryAdjustQuantities(input: $input) @idempotent(key: $key) {
+                     userErrors { field message }
+                     inventoryAdjustmentGroup { id }
+                   }
+                 }',
+                [
+                    'key'   => 'discount-yarn-order-' . $order['public_id'],
+                    'input' => [
+                        'reason'               => 'correction',
+                        'name'                 => 'available',
+                        'referenceDocumentUri' => url('admin/order.php?id=' . $orderId),
+                        'changes'              => $changes,
+                    ],
+                ]
+            );
+            $errors = $d['inventoryAdjustQuantities']['userErrors'] ?? [];
+            if ($errors) {
+                throw new ShopifyError('Shopify refused the stock change: ' . implode('; ', array_column($errors, 'message')));
+            }
+        }
+    } catch (ShopifyError $ex) {
+        db()->prepare('UPDATE orders SET inventory_push_error = ? WHERE id = ?')->execute([$ex->getMessage(), $orderId]);
+        error_log('Shopify stock push failed for order ' . $orderId . ': ' . $ex->getMessage());
+        return false;
+    }
+    db()->prepare('UPDATE orders SET inventory_pushed_at = ?, inventory_push_error = NULL WHERE id = ?')
+        ->execute([date('Y-m-d H:i:s'), $orderId]);
+    return true;
+}
+
+// Retries every order whose stock hasn't reached Shopify yet.
+function shopify_push_pending_orders(): int
+{
+    $ids = db()->query("SELECT id FROM orders WHERE status IN ('paid', 'shipped') AND inventory_pushed_at IS NULL ORDER BY id")
+        ->fetchAll(PDO::FETCH_COLUMN);
+    $n = 0;
+    foreach ($ids as $id) {
+        $n += shopify_push_order_inventory((int)$id) ? 1 : 0;
+    }
+    return $n;
 }
 
 // Runs a full sync. Returns stats. Only one sync runs at a time.
@@ -162,6 +266,8 @@ function shopify_sync_catalog(): array
     return shopify_with_lock('catalog_sync', function () {
         $started = time();
         $stats = ['products' => 0, 'variants' => 0, 'added' => 0, 'updated' => 0, 'hidden' => 0, 'seconds' => 0];
+        // Push sold stock first so the counts read back below already include it.
+        $stats['pushed'] = shopify_push_pending_orders();
         $held = shopify_units_held();
         $seen = [];
         $pdo = db();
@@ -293,7 +399,7 @@ function shopify_revalidate_lines(array $lines): bool
             continue;
         }
         $row = shopify_variant_row(
-            ['id' => $p['shopify_product_id'], 'title' => $p['name'], 'vendor' => $p['brand']],
+            ['id' => $p['shopify_product_id'], 'title' => $p['name'], 'vendor' => $p['brand'], 'handle' => $p['group_slug']],
             $n + ['title' => 'Default Title', 'sku' => $p['sku']],
             (int)($held[$vid] ?? 0)
         );

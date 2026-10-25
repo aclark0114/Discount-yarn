@@ -5,14 +5,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '1';
+const ASSET_VERSION = '2';
 
-function page_header(string $title, string $description = '', string $active = ''): void
+function page_header(string $title, string $description = '', string $active = '', string $canonical = ''): void
 {
     $store = (string)config('store_name');
     $fullTitle = $title === '' ? $store . ' | ' . config('tagline') : $title . ' | ' . $store;
     $desc = $description ?: 'Quality yarn at discount prices. Closeouts, overstock and sale skeins, shipped fast.';
     $path = strtok($_SERVER['REQUEST_URI'] ?? '/', '?');
+    $canonical = $canonical !== '' ? $canonical : url($path);
     $count = cart_count();
     $nav = [
         '/shop.php'          => 'Shop all',
@@ -28,11 +29,11 @@ function page_header(string $title, string $description = '', string $active = '
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($fullTitle) ?></title>
 <meta name="description" content="<?= e($desc) ?>">
-<link rel="canonical" href="<?= e(url($path)) ?>">
+<link rel="canonical" href="<?= e($canonical) ?>">
 <meta property="og:title" content="<?= e($fullTitle) ?>">
 <meta property="og:description" content="<?= e($desc) ?>">
 <meta property="og:type" content="website">
-<meta property="og:url" content="<?= e(url($path)) ?>">
+<meta property="og:url" content="<?= e($canonical) ?>">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

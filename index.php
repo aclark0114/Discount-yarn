@@ -1,15 +1,12 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/layout.php';
+require __DIR__ . '/includes/catalog.php';
 
-$featured = db()->query(
-    'SELECT * FROM products WHERE is_active = 1 AND stock > 0
-     ORDER BY is_featured DESC, (sale_price_cents IS NOT NULL AND sale_price_cents < price_cents) DESC, created_at DESC
-     LIMIT 8'
-)->fetchAll();
+$featured = catalog_groups(['is_active = 1', 'stock > 0'], [], 'featured', 8);
 
 $weights = db()->query(
-    "SELECT weight, COUNT(*) AS n FROM products WHERE is_active = 1 AND stock > 0 AND weight <> '' GROUP BY weight"
+    "SELECT weight, COUNT(DISTINCT group_slug) AS n FROM products WHERE is_active = 1 AND stock > 0 AND weight <> '' GROUP BY weight"
 )->fetchAll(PDO::FETCH_KEY_PAIR);
 
 page_header('');
@@ -38,7 +35,7 @@ page_header('');
   </div>
   <?php if ($featured): ?>
     <div class="grid">
-      <?php foreach ($featured as $p) { product_card($p); } ?>
+      <?php foreach ($featured as $g) { group_card($g); } ?>
     </div>
   <?php else: ?>
     <p class="empty">New yarn is on the way. Check back soon.</p>
