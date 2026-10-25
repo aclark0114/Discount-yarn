@@ -104,7 +104,7 @@ function product_card(array $p): void
     ?>
   <article class="card">
     <a class="card-img" href="/product.php?slug=<?= e(rawurlencode($p['slug'])) ?>">
-      <img src="<?= e(product_image($p)) ?>" alt="<?= e($p['name'] . ($p['colorway'] ? ', ' . $p['colorway'] : '')) ?>" loading="lazy" width="600" height="600">
+      <img src="<?= e(product_image($p, 600)) ?>" alt="<?= e($p['name'] . ($p['colorway'] ? ', ' . $p['colorway'] : '')) ?>" loading="lazy" width="600" height="600">
       <?php if ($off > 0): ?><span class="badge"><?= $off ?>% off</span><?php endif; ?>
       <?php if ((int)$p['stock'] <= 0): ?><span class="badge badge-out">Sold out</span><?php endif; ?>
     </a>

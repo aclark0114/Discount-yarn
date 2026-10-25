@@ -104,7 +104,7 @@ page_header($title, mb_substr(strip_tags((string)$p['description']) ?: $title, 0
     'name' => $title,
     'sku' => $p['sku'],
     'brand' => $p['brand'] ? ['@type' => 'Brand', 'name' => $p['brand']] : null,
-    'image' => url(product_image($p)),
+    'image' => str_starts_with(product_image($p), 'http') ? product_image($p) : url(product_image($p)),
     'offers' => [
         '@type' => 'Offer',
         'price' => number_format(effective_price($p) / 100, 2, '.', ''),

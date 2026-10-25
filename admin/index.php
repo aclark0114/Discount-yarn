@@ -4,7 +4,8 @@ require __DIR__ . '/_auth.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     // Quick stock edits from the list.
-    $upd = db()->prepare('UPDATE products SET stock = ? WHERE id = ?');
+    // Shopify products get their stock from the sync, so they are skipped.
+    $upd = db()->prepare('UPDATE products SET stock = ? WHERE id = ? AND shopify_variant_id IS NULL');
     $n = 0;
     foreach ((array)($_POST['stock'] ?? []) as $id => $stock) {
         if ($stock === '' || !is_numeric($stock)) {
@@ -54,12 +55,12 @@ admin_header('Products');
     <tbody>
     <?php foreach ($products as $p): ?>
       <tr class="<?= $p['is_active'] ? '' : 'inactive' ?>">
-        <td><img src="<?= e(product_image($p)) ?>" alt="" width="44" height="44"></td>
+        <td><img src="<?= e(product_image($p, 100)) ?>" alt="" width="44" height="44" loading="lazy"></td>
         <td><a href="/admin/product_edit.php?id=<?= (int)$p['id'] ?>"><?= e($p['name']) ?></a><br><small><?= e(implode(' · ', array_filter([$p['brand'], $p['colorway']]))) ?></small></td>
         <td><?= e($p['sku']) ?></td>
         <td><?= e($p['weight']) ?></td>
         <td><?php if (percent_off($p)): ?><s><?= money((int)$p['price_cents']) ?></s> <?php endif; ?><?= money(effective_price($p)) ?></td>
-        <td><input class="stock-input" type="number" name="stock[<?= (int)$p['id'] ?>]" value="<?= (int)$p['stock'] ?>" aria-label="Stock for <?= e($p['name']) ?>"></td>
+        <td><?php if ($p['shopify_variant_id']): ?><span title="Synced from Shopify"><?= (int)$p['stock'] ?> <small>Shopify</small></span><?php else: ?><input class="stock-input" type="number" name="stock[<?= (int)$p['id'] ?>]" value="<?= (int)$p['stock'] ?>" aria-label="Stock for <?= e($p['name']) ?>"><?php endif; ?></td>
         <td><?= $p['is_active'] ? ((int)$p['stock'] > 0 ? 'Live' : 'Sold out') : 'Hidden' ?><?= $p['is_featured'] ? ' ★' : '' ?></td>
       </tr>
     <?php endforeach; ?>

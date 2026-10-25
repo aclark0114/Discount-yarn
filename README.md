@@ -1,6 +1,6 @@
 # Discount Yarn store
 
-A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, and pay on Stripe Checkout (the Leafwood Advisory Stripe account). Stock drops automatically when Stripe confirms payment. Order emails go out through a dedicated Postmark server. Inventory is managed in a password-protected admin at `/admin/`.
+A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, and pay on Stripe Checkout (the Leafwood Advisory Stripe account). Stock drops automatically when Stripe confirms payment. Order emails go out through a dedicated Postmark server. Products, photos, prices and stock are copied from the Stars Hollow Shopify store every 15 minutes; Shopify is never involved in checkout. A password-protected admin lives at `/admin/`.
 
 ## What's here
 
@@ -13,7 +13,9 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `admin/` | Login, products (quick stock edits), add/edit product with photo, CSV import, orders, mark shipped |
 | `includes/` | Config, DB, cart, Stripe and Postmark clients (no Composer needed) |
 | `cron/expire_pending.php` | Daily cleanup of checkouts that never paid |
-| `schema.sql` | Database tables, run once in phpMyAdmin |
+| `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
+| `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
+| `schema.sql`, `schema_v2_shopify.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
 
 ## One-time setup
@@ -38,7 +40,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 
 ## Shopify connection (Stars Hollow inventory)
 
-Work in progress: the store is moving to Shopify as the source of products, photos, prices and stock. So far only the connection is built.
+Shopify supplies the catalog only: products, photos, prices and stock. Shoppers still pay on Stripe Checkout here, so the Stars Hollow store never sees the checkout.
 
 - **Where config lives.** Put the config at `/home/xwy78w88pv1w/discount-yarn-config.php`, outside `public_html`. The store loads it first and falls back to `config.php` in the document root. Copy the `shopify` and `cache_dir` blocks from `config.sample.php`.
 - **Shopify settings.**
@@ -47,6 +49,15 @@ Work in progress: the store is moving to Shopify as the source of products, phot
   - `storefront_token`: can stay blank. The store creates one through the Admin API the first time it's needed and caches it.
 - **Cache folder.** `cache_dir` defaults to `/home/xwy78w88pv1w/discount-yarn-cache`, next to the config file. It holds the Admin token (renewed automatically about 5 minutes before its 24 hour expiry) and the Storefront token. It must be writable and outside `public_html`.
 - **Test it.** Open `/admin/shopify.php` and click Run connection test, or in cPanel Terminal run `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_check.php`. Either one shows the shop name, product count, granted scopes and a Storefront API check. Tokens are never shown.
+- **Database.** Run `schema_v2_shopify.sql` in phpMyAdmin once, after `schema.sql`.
+- **Sync.** Add a cron job every 15 minutes: `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_sync.php`. To refresh right away, use Sync catalog now on `/admin/shopify.php`. Pages always read the local copy, so the site stays up if Shopify is slow or down.
+- **How it maps.**
+  - Each Shopify variant becomes one yarn in the store. Vendor becomes brand, and the variant name becomes colorway.
+  - Weight is guessed from the product type, tags or a "Weight" option, and fiber from a tag such as `100% merino` or `fiber: alpaca`.
+  - Only active Shopify products are copied. Products that are deleted, archived or set to draft disappear from the store on the next sync.
+- **Prices.** Shoppers pay Shopify's price less `shopify.markdown_percent`. The struck-through price is the higher of Shopify's price and its compare-at price.
+- **Stock.** The store shows Shopify's count minus skeins in paid orders that haven't shipped yet. That stops the same skeins being sold twice before Shopify's count is lowered. Right before sending a shopper to Stripe, checkout asks Shopify for the live count and price. If either changed, the shopper goes back to the cart to review it. If Shopify can't be reached, checkout uses the last sync.
+- **Editing.** Synced yarn can't be edited in admin or by CSV import, because the next sync would overwrite it. Change it in Shopify instead. Featuring a yarn on the home page still works here.
 - **`shop_not_permitted`.** This error means the Dev Dashboard app belongs to a different Shopify organization than the store. Create the app in the organization that owns the store, install it, and update the client ID and secret. After a failed token request, the store waits 5 minutes before trying again on page loads. The test page always tries again straight away.
 
 ## Adding inventory

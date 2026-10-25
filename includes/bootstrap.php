@@ -126,8 +126,13 @@ function percent_off(array $p): int
     return $price > 0 && $now < $price ? (int)round(100 * ($price - $now) / $price) : 0;
 }
 
-function product_image(array $p): string
+// Photo URL: a Shopify CDN image (sized with ?width=), an uploaded file, or the placeholder.
+function product_image(array $p, int $width = 800): string
 {
+    if (!empty($p['image_url'])) {
+        $u = (string)$p['image_url'];
+        return $u . (str_contains($u, '?') ? '&' : '?') . 'width=' . $width;
+    }
     return !empty($p['image']) ? '/uploads/' . rawurlencode($p['image']) : '/assets/yarn-placeholder.svg';
 }
 

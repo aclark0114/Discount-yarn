@@ -54,7 +54,7 @@ page_header('Your cart');
       <ul class="cart-lines">
         <?php foreach ($lines as $l): $p = $l['product']; ?>
           <li class="cart-line">
-            <img src="<?= e(product_image($p)) ?>" alt="" width="96" height="96">
+            <img src="<?= e(product_image($p, 200)) ?>" alt="" width="96" height="96" loading="lazy">
             <div class="cart-line-info">
               <a href="/product.php?slug=<?= e(rawurlencode($p['slug'])) ?>"><?= e($p['name']) ?></a>
               <span class="muted"><?= e(implode(' · ', array_filter([$p['brand'], $p['colorway']]))) ?></span>

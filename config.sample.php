@@ -13,6 +13,9 @@ return [
         'client_id'        => '',                      // Dev Dashboard > app > Settings
         'client_secret'    => '',                      // Dev Dashboard > app > Settings
         'storefront_token' => '',                      // optional; created automatically if blank
+        // Percent taken off Shopify's price. 0 sells at the Shopify price.
+        // Shopify's compare-at price, when higher, shows as the struck-through price.
+        'markdown_percent' => 0,
     ],
 
     // Tokens and the catalog cache. Must be writable and outside public_html.

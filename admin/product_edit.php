@@ -32,6 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('Hidden from the store. Past orders keep their details.');
         redirect('/admin/');
     }
+    if ($product && $product['shopify_variant_id']) {
+        // Everything but featuring comes from Shopify and would be overwritten by the next sync.
+        db()->prepare('UPDATE products SET is_featured = ? WHERE id = ?')->execute([isset($_POST['is_featured']) ? 1 : 0, $id]);
+        flash('Saved. Other details for this yarn are managed in Shopify.');
+        redirect('/admin/product_edit.php?id=' . $id);
+    }
     $form = array_merge($form, array_intersect_key($_POST, array_flip(PRODUCT_FIELDS)));
     $form['is_active'] = isset($_POST['is_active']) ? '1' : '0';
     $form['is_featured'] = isset($_POST['is_featured']) ? '1' : '0';
@@ -63,6 +69,9 @@ admin_header($product ? 'Edit ' . $product['name'] : 'Add product');
   <?php if ($product && $product['is_active']): ?><a href="/product.php?slug=<?= e(rawurlencode($product['slug'])) ?>" target="_blank" rel="noopener">View in store</a><?php endif; ?>
 </div>
 <?php if ($error): ?><p class="error"><?= e($error) ?></p><?php endif; ?>
+<?php if ($product && $product['shopify_variant_id']): ?>
+  <p class="notice">This yarn comes from the Stars Hollow Shopify store. Name, price, stock, photo and description update on every sync, so change them in Shopify. You can still feature it on the home page here.</p>
+<?php endif; ?>
 
 <form class="edit" method="post" enctype="multipart/form-data" action="/admin/product_edit.php<?= $id ? '?id=' . $id : '' ?>">
   <?= csrf_field() ?>
@@ -87,18 +96,22 @@ admin_header($product ? 'Edit ' . $product['name'] : 'Add product');
     <label>Stock (skeins) <input name="stock" type="number" value="<?= $v('stock') ?>"></label>
   </div>
   <label>Description <textarea name="description" rows="5"><?= $v('description') ?></textarea></label>
+  <?php if ($product && $product['shopify_variant_id']): ?>
+  <div class="image-row"><img src="<?= e(product_image($product, 240)) ?>" alt="" width="120" height="120"> <span>Photo from Shopify</span></div>
+  <?php else: ?>
   <div class="image-row">
     <?php if ($product && $product['image']): ?>
-      <img src="<?= e(product_image($product)) ?>" alt="" width="120" height="120">
+      <img src="<?= e(product_image($product, 240)) ?>" alt="" width="120" height="120">
       <label class="check"><input type="checkbox" name="remove_image" value="1"> Remove photo</label>
     <?php endif; ?>
     <label>Photo (JPG, PNG or WebP) <input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label>
   </div>
+  <?php endif; ?>
   <label class="check"><input type="checkbox" name="is_active" value="1"<?= !empty($form['is_active']) ? ' checked' : '' ?>> Show in store</label>
   <label class="check"><input type="checkbox" name="is_featured" value="1"<?= !empty($form['is_featured']) ? ' checked' : '' ?>> Feature on home page</label>
   <div class="actions">
     <button type="submit">Save</button>
-    <?php if ($product && $product['is_active']): ?>
+    <?php if ($product && $product['is_active'] && !$product['shopify_variant_id']): ?>
       <button class="danger" type="submit" name="delete" value="1" formnovalidate>Hide from store</button>
     <?php endif; ?>
   </div>

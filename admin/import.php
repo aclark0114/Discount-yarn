@@ -49,6 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $in = array_filter($in, fn($c) => trim((string)$c) !== '');
                 try {
                     $existing = isset($in['sku']) ? product_by_sku(trim($in['sku'])) : null;
+                    if ($existing && $existing['shopify_variant_id']) {
+                        throw new InvalidArgumentException('SKU ' . $existing['sku'] . ' is managed in Shopify');
+                    }
                     if ($existing && $mode === 'add_stock' && isset($in['stock'])) {
                         $in['stock'] = (string)((int)$existing['stock'] + (int)$in['stock']);
                     }
