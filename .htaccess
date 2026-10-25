@@ -13,7 +13,7 @@ DirectoryIndex index.php
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^(includes|cron)(/|$) - [F,L]
+    RewriteRule ^(includes|cron|discount-yarn-cache|cache)(/|$) - [F,L]
     RewriteRule ^\.git - [F,L]
 </IfModule>
 

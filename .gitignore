@@ -1,5 +1,8 @@
-# Server-only secrets
+# Server-only secrets and token/catalog cache
 config.php
+discount-yarn-config.php
+discount-yarn-cache/
+cache/
 
 # Product photos uploaded through the admin live only on the server
 uploads/*

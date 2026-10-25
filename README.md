@@ -36,6 +36,19 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 8. **Cron.** cPanel > Cron Jobs, once a day: `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/expire_pending.php`
 9. **Test.** Use a Stripe test key and test webhook secret first, buy something with card `4242 4242 4242 4242`, and confirm the order shows in `/admin/orders.php` and the emails arrive. Then switch to live keys.
 
+## Shopify connection (Stars Hollow inventory)
+
+Work in progress: the store is moving to Shopify as the source of products, photos, prices and stock. So far only the connection is built.
+
+- **Where config lives.** Put the config at `/home/xwy78w88pv1w/discount-yarn-config.php`, outside `public_html`. The store loads it first and falls back to `config.php` in the document root. Copy the `shopify` and `cache_dir` blocks from `config.sample.php`.
+- **Shopify settings.**
+  - `shop_domain`: the store's `something.myshopify.com` address (Shopify admin > Settings > Domains), not starshollowyarns.com.
+  - `client_id` and `client_secret`: from Dev Dashboard > the app > Settings.
+  - `storefront_token`: can stay blank. The store creates one through the Admin API the first time it's needed and caches it.
+- **Cache folder.** `cache_dir` defaults to `/home/xwy78w88pv1w/discount-yarn-cache`, next to the config file. It holds the Admin token (renewed automatically about 5 minutes before its 24 hour expiry) and the Storefront token. It must be writable and outside `public_html`.
+- **Test it.** Open `/admin/shopify.php` and click Run connection test, or in cPanel Terminal run `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_check.php`. Either one shows the shop name, product count, granted scopes and a Storefront API check. Tokens are never shown.
+- **`shop_not_permitted`.** This error means the Dev Dashboard app belongs to a different Shopify organization than the store. Create the app in the organization that owns the store, install it, and update the client ID and secret. After a failed token request, the store waits 5 minutes before trying again on page loads. The test page always tries again straight away.
+
 ## Adding inventory
 
 - One at a time: `/admin/` > Add product. Photos can be JPG, PNG or WebP up to 8 MB.

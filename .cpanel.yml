@@ -5,5 +5,5 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/xwy78w88pv1w/public_html/discount-yarn.com/
-    - /bin/rsync -rv --no-perms --no-owner --no-group --exclude='.git' --exclude='.gitignore' --exclude='.cpanel.yml' --exclude='README.md' --exclude='CLAUDE.md' --exclude='/config.php' --include='/uploads/.htaccess' --exclude='/uploads/*' --exclude='*.zip' --exclude='*.bak' --exclude='*.sql' --exclude='error_log' ./ $DEPLOYPATH
+    - /bin/rsync -rv --no-perms --no-owner --no-group --exclude='.git' --exclude='.gitignore' --exclude='.cpanel.yml' --exclude='README.md' --exclude='CLAUDE.md' --exclude='/config.php' --exclude='/discount-yarn-config.php' --exclude='/discount-yarn-cache/' --exclude='/cache/' --include='/uploads/.htaccess' --exclude='/uploads/*' --exclude='*.zip' --exclude='*.bak' --exclude='*.sql' --exclude='error_log' ./ $DEPLOYPATH
     - /bin/mkdir -p ${DEPLOYPATH}uploads && /bin/chmod 755 ${DEPLOYPATH}uploads

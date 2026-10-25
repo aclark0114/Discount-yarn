@@ -1,8 +1,23 @@
 <?php
-// Copy this file to config.php on the server and fill in real values.
-// config.php is gitignored and excluded from deploy. Never commit it.
+// Copy this file to the server and fill in real values. Preferred location
+// is outside the web root: /home/<cpaneluser>/discount-yarn-config.php
+// (config.php in the document root still works as a fallback).
+// Neither copy is committed or deployed. Never commit real values.
 
 return [
+    // Shopify (Stars Hollow store). Dev Dashboard app with scopes
+    // read_products, read_inventory, unauthenticated_read_product_listings.
+    'shopify' => [
+        'shop_domain'      => 'REPLACE.myshopify.com', // the *.myshopify.com handle, NOT starshollowyarns.com
+        'api_version'      => '2026-10',
+        'client_id'        => '',                      // Dev Dashboard > app > Settings
+        'client_secret'    => '',                      // Dev Dashboard > app > Settings
+        'storefront_token' => '',                      // optional; created automatically if blank
+    ],
+
+    // Tokens and the catalog cache. Must be writable and outside public_html.
+    'cache_dir' => __DIR__ . '/discount-yarn-cache',
+
     // Store identity
     'store_name'    => 'Discount Yarn',
     'tagline'       => 'Good yarn. Better prices.',

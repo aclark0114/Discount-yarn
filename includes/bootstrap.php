@@ -4,12 +4,19 @@
 
 declare(strict_types=1);
 
-$configFile = getenv('STORE_CONFIG') ?: __DIR__ . '/../config.php';
+// Preferred: outside the web root, e.g. /home/<cpaneluser>/discount-yarn-config.php
+// (this file lives in /home/<cpaneluser>/public_html/discount-yarn.com/includes).
+const CONFIG_OUTSIDE_WEBROOT = __DIR__ . '/../../../discount-yarn-config.php';
+// Fallback: config.php in the document root, blocked by .htaccess.
+const CONFIG_FALLBACK = __DIR__ . '/../config.php';
+
+$configFile = getenv('STORE_CONFIG') ?: (is_file(CONFIG_OUTSIDE_WEBROOT) ? CONFIG_OUTSIDE_WEBROOT : CONFIG_FALLBACK);
 if (!is_file($configFile)) {
     http_response_code(500);
-    exit('Store is not configured yet. Copy config.sample.php to config.php.');
+    exit('Store is not configured yet. Copy config.sample.php to discount-yarn-config.php in your home folder.');
 }
 $CONFIG = require $configFile;
+define('CONFIG_FILE', realpath($configFile) ?: $configFile);
 
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
