@@ -1,6 +1,8 @@
 # Server-only secrets and token/catalog cache
 config.php
 discount-yarn-config.php
+shopify_token.json
+shopify_connected.lock
 discount-yarn-cache/
 cache/
 

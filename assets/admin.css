@@ -27,6 +27,9 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 td img { border-radius: 4px; object-fit: cover; background: #efe5d3; }
 tr.inactive td { opacity: .55; }
+.report td:last-child { overflow-wrap: anywhere; }
+.report td:nth-child(2) { white-space: nowrap; }
+@media (max-width: 700px) { .report th { width: auto !important; } }
 .stock-input { width: 80px; }
 .edit { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; margin-top: 16px; display: grid; gap: 14px; }
 .edit label { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; }

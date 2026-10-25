@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/shopify.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 
@@ -29,7 +30,7 @@ function admin_header(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> | <?= $store ?> admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=<?= '1' ?>">
+<link rel="stylesheet" href="/assets/admin.css?v=2">
 </head>
 <body>
 <header class="admin-bar">
@@ -47,6 +48,9 @@ function admin_header(string $title): void
 </header>
 <main class="admin-main">
 <?php
+    if (!shopify_has_admin_token() && basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'shopify.php') {
+        echo '<p class="error">Shopify Admin API not connected. <a href="/shopify/install.php">Connect to Shopify</a></p>';
+    }
     $msg = flash();
     if ($msg) {
         echo '<p class="notice">' . e($msg) . '</p>';

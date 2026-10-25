@@ -8,7 +8,7 @@ PHP 8 + MySQL yarn shop on GoDaddy cPanel. Stripe Checkout (Leafwood Advisory's 
 - Keep the `.cpanel.yml` excludes (`config.php`, `uploads/*`, `.sql`, zips, backups, `error_log`).
 
 ## Secrets (never commit or print)
-- The config (`/home/<user>/discount-yarn-config.php`, or `config.php` in the document root) holds the Shopify client secret, DB password, Stripe key, webhook secret, Postmark token and admin hash. Only `config.sample.php` (placeholders) is in the repo.
+- The config (`/home/<user>/discount-yarn-config.php`, or `config.php` in the document root) holds the Shopify client secret and Storefront token, DB password, Stripe key, webhook secret, Postmark token and admin hash. Only `config.sample.php` (placeholders) is in the repo.
 - `uploads/` holds product photos on the server only. The cache folder (`cache_dir`, outside public_html) holds Shopify tokens; never print or log them.
 
 ## Code conventions
@@ -17,7 +17,8 @@ PHP 8 + MySQL yarn shop on GoDaddy cPanel. Stripe Checkout (Leafwood Advisory's 
 - Every POST form includes `csrf_field()` and its handler calls `csrf_check()`.
 - Prices and stock are read from the database at checkout, never trusted from the browser. Shopify-synced rows (`shopify_variant_id` set) are read-only in admin; checkout re-checks them live with `shopify_revalidate_lines()`.
 - Store pages never call Shopify; only cron, admin and checkout do.
-- `shopify_storefront_only()` (storefront_token set) means no Admin API calls at all: sync and live checks go through the Storefront API and stock push is skipped. Keep both paths working.
+- Admin API auth is the OAuth authorization code grant only (`shopify/install.php`, `shopify/callback.php`); the offline token lives in `shopify_token.json` next to the config, outside public_html, and is never printed or logged. Storefront calls use `shopify.storefront_token` from config.
+- `shopify_storefront_only()` (no saved Admin token yet) routes sync and live checks through the Storefront API; `shopify_can_push_stock()` (token has write_inventory) gates the stock push. Keep both paths working.
 - Checkout Sessions carry `metadata.store = discount-yarn`; the webhook ignores sessions without it because the Stripe account is shared with Leafwood.
 - Schema changes go in a new `schema_vN_*.sql` file run by hand in phpMyAdmin. SQL in pages must also run on SQLite (used for local testing).
 - Cron scripts run under `php -q` and exit if called over the web (see `cron/expire_pending.php`).

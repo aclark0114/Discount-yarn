@@ -5,15 +5,6 @@ require __DIR__ . '/../includes/shopify_sync.php';
 $rows = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    if (isset($_POST['reset_storefront'])) {
-        try {
-            shopify_cache_delete('storefront_token.json');
-            flash('Cached Storefront token removed. The next check creates a new one.');
-        } catch (ShopifyError $ex) {
-            flash($ex->getMessage());
-        }
-        redirect('/admin/shopify.php');
-    }
     if (isset($_POST['sync'])) {
         set_time_limit(600);
         try {
@@ -32,22 +23,22 @@ admin_header('Shopify connection');
 ?>
 <div class="head"><h1>Shopify connection</h1></div>
 <p>Last catalog sync: <?= $last ? e(date('M j, g:ia', (int)$last['finished_at'])) . ', ' . (int)$last['variants'] . ' variants from ' . (int)$last['products'] . ' products' : 'never' ?>. The cron job syncs every 15 minutes.</p>
-<p><?= shopify_storefront_only()
-    ? 'Mode: Storefront token only. The test reads the shop and a product with the Storefront API; no Admin token is used.'
-    : 'Checks the Stars Hollow Shopify app: gets a fresh Admin API token, reads the shop name and product count, then makes a Storefront API call.' ?> Tokens are never shown.</p>
+<?php if (!shopify_has_admin_token()): ?>
+  <p class="error">Not connected to Shopify's Admin API yet. <a href="/shopify/install.php">Connect to Shopify</a> and approve the app in the Stars Hollow Shopify admin. Until then the catalog syncs through the Storefront token only.</p>
+<?php else: ?>
+  <p>Connected to Shopify's Admin API<?= shopify_can_push_stock() ? '' : ' (read only: sold stock is lowered in Shopify by hand)' ?>. <a href="/shopify/install.php">Reconnect</a> needs the admin password.</p>
+<?php endif; ?>
+<p>The test shows the shop name and product count from the Storefront API, then stock for three products from the Admin API. Tokens are never shown.</p>
 
 <form method="post" action="/admin/shopify.php" class="actions">
   <?= csrf_field() ?>
   <button type="submit">Run connection test</button>
   <button type="submit" name="sync" value="1">Sync catalog now</button>
-  <?php if (!shopify_storefront_only()): ?>
-  <button type="submit" name="reset_storefront" value="1" class="danger">Forget Storefront token</button>
-  <?php endif; ?>
 </form>
 
 <?php if ($rows !== null): ?>
 <div class="table-wrap" style="margin-top:16px">
-<table>
+<table class="report">
   <tbody>
   <?php foreach ($rows as [$label, $ok, $detail]): ?>
     <tr>

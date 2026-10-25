@@ -1,8 +1,10 @@
 <?php
-// Shopify API access for the Stars Hollow store. Admin API tokens come from
-// the client credentials grant (they last 24 hours) and are cached in
-// cache_dir. The Storefront token is read from config or created once with
-// the Admin API and cached. Tokens are never logged or printed.
+// Shopify API access for the Stars Hollow store.
+// - Admin API: an offline token from the OAuth authorization code grant
+//   (/shopify/install.php then /shopify/callback.php), saved as
+//   shopify_token.json next to the config file, outside public_html.
+// - Storefront API: the Headless channel token in shopify.storefront_token.
+// Tokens are never logged or printed.
 
 declare(strict_types=1);
 
@@ -10,17 +12,16 @@ class ShopifyError extends RuntimeException
 {
 }
 
-// Token refresh margin before Shopify's 24 hour expiry.
+const SHOPIFY_SHOP_RE = '/^[a-z0-9-]+\.myshopify\.com$/';
+// Refresh an expiring token this long before it runs out.
 const SHOPIFY_TOKEN_MARGIN = 300;
-// After a failed token request, wait this long before trying again on page loads.
-const SHOPIFY_AUTH_BACKOFF = 300;
 
 function shopify_domain(): string
 {
     $domain = strtolower(trim((string)config('shopify.shop_domain')));
     $domain = preg_replace('#^https?://#', '', $domain);
     $domain = rtrim((string)$domain, '/');
-    if (!preg_match('/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/', $domain)) {
+    if (!preg_match(SHOPIFY_SHOP_RE, $domain)) {
         throw new ShopifyError('shopify.shop_domain must be the store\'s *.myshopify.com address (find it in Shopify admin > Settings > Domains), not starshollowyarns.com.');
     }
     return $domain;
@@ -116,81 +117,217 @@ function shopify_http(string $url, array $headers, string $body): array
     return [$status, is_array($decoded) ? $decoded : null, (string)$raw];
 }
 
-// Turns a failed token response into a message for the admin.
-function shopify_auth_error(int $status, ?array $json, string $raw): string
+// The folder holding the config file. The OAuth token is saved here, so it
+// must be outside the web root.
+function shopify_config_dir(): string
 {
-    $code = (string)($json['error'] ?? '');
-    $desc = (string)($json['error_description'] ?? '');
-    if ($code === 'shop_not_permitted' || str_contains($raw, 'shop_not_permitted')) {
-        return 'Shopify refused the token request (shop_not_permitted). The app and the store are in different Shopify organizations: '
-            . 'the app was probably created under the collaborator\'s organization instead of the store owner\'s. '
-            . 'Recreate the app in the Dev Dashboard of the organization that owns the store, install it, and update client_id and client_secret.';
+    $dir = dirname(CONFIG_FILE);
+    $docroot = realpath(__DIR__ . '/..') ?: '';
+    $real = realpath($dir) ?: $dir;
+    if ($docroot !== '' && str_starts_with(rtrim($real, '/') . '/', rtrim($docroot, '/') . '/')) {
+        throw new ShopifyError('The config file is inside public_html, so the Shopify token has nowhere safe to go. Move it to /home/<cpanel user>/discount-yarn-config.php first.');
     }
-    if ($status === 401 || $code === 'invalid_client') {
-        return 'Shopify rejected the client ID or client secret (' . ($code ?: 'HTTP 401') . '). Copy both again from Dev Dashboard > app > Settings.';
-    }
-    if ($status === 404) {
-        return 'No Shopify store answered at ' . shopify_domain() . '. Check shopify.shop_domain.';
-    }
-    $detail = trim($code . ($desc !== '' ? ': ' . $desc : ''));
-    return 'Shopify token request failed (HTTP ' . $status . ($detail !== '' ? ', ' . $detail : '') . ').';
+    return $real;
 }
 
-// Returns a valid Admin API access token, requesting a new one when the
-// cached one is within SHOPIFY_TOKEN_MARGIN of expiring. $force skips the
-// cache and the failure backoff (used by the admin test page).
-function shopify_admin_token(bool $force = false): string
+function shopify_token_path(): string
 {
-    $fresh = function (?array $t): bool {
-        return $t && !empty($t['access_token']) && (int)($t['expires_at'] ?? 0) - SHOPIFY_TOKEN_MARGIN > time();
-    };
-    if (!$force && $fresh($cached = shopify_cache_read('admin_token.json'))) {
-        return $cached['access_token'];
+    return shopify_config_dir() . '/shopify_token.json';
+}
+
+function shopify_connect_lock_path(): string
+{
+    return shopify_config_dir() . '/shopify_connected.lock';
+}
+
+function shopify_connect_locked(): bool
+{
+    try {
+        return is_file(shopify_connect_lock_path());
+    } catch (ShopifyError $ex) {
+        return false;
     }
+}
 
-    return shopify_with_lock('admin_token', function () use ($force, $fresh) {
-        // Another request may have refreshed it while we waited for the lock.
-        if (!$force && $fresh($cached = shopify_cache_read('admin_token.json'))) {
-            return $cached['access_token'];
-        }
-        $fail = shopify_cache_read('admin_token_error.json');
-        if (!$force && $fail && time() - (int)$fail['at'] < SHOPIFY_AUTH_BACKOFF) {
-            throw new ShopifyError((string)$fail['message']);
-        }
+// The saved OAuth token record, or null when the store hasn't been connected.
+function shopify_token_read(): ?array
+{
+    $path = shopify_token_path();
+    if (!is_file($path)) {
+        return null;
+    }
+    $t = json_decode((string)file_get_contents($path), true);
+    return is_array($t) && !empty($t['access_token']) ? $t : null;
+}
 
-        $clientId = (string)config('shopify.client_id');
-        $secret = (string)config('shopify.client_secret');
-        if ($clientId === '' || $secret === '') {
-            throw new ShopifyError('Set shopify.client_id and shopify.client_secret in the config (Dev Dashboard > app > Settings).');
+function shopify_token_save(array $token): void
+{
+    $path = shopify_token_path();
+    $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+    if (file_put_contents($tmp, json_encode($token)) === false) {
+        throw new ShopifyError('Could not write the Shopify token next to the config file. Check that folder is writable.');
+    }
+    chmod($tmp, 0600);
+    rename($tmp, $path);
+    @chmod($path, 0600);
+}
+
+function shopify_has_admin_token(): bool
+{
+    try {
+        return shopify_token_read() !== null;
+    } catch (ShopifyError $ex) {
+        return false;
+    }
+}
+
+function shopify_token_scopes(): array
+{
+    try {
+        $t = shopify_token_read();
+    } catch (ShopifyError $ex) {
+        return [];
+    }
+    return $t ? array_values(array_filter(array_map('trim', explode(',', (string)($t['scope'] ?? ''))))) : [];
+}
+
+// Without a saved Admin token the catalog and live checks fall back to the
+// Storefront API alone.
+function shopify_storefront_only(): bool
+{
+    return !shopify_has_admin_token();
+}
+
+// Lowering Shopify stock after a sale needs the Admin token with write_inventory.
+function shopify_can_push_stock(): bool
+{
+    return in_array('write_inventory', shopify_token_scopes(), true);
+}
+
+const SHOPIFY_NOT_CONNECTED = 'The store is not connected to Shopify\'s Admin API yet. An admin needs to open /shopify/install.php and approve the app.';
+
+function shopify_redirect_uri(): string
+{
+    return (string)config('shopify.redirect_uri', 'https://discount-yarn.com/shopify/callback.php');
+}
+
+function shopify_oauth_scopes(): string
+{
+    return (string)config('shopify.scopes', 'read_products,read_inventory');
+}
+
+// Checks the hmac Shopify adds to the OAuth callback: drop hmac (and the
+// legacy signature), sort the rest by key, join as key=value with &, and
+// HMAC-SHA256 with the client secret. Both the raw and the decoded form of
+// the values are tried, since either is a correct reading of the docs.
+function shopify_oauth_hmac_valid(string $queryString, string $secret): bool
+{
+    $pairs = [];
+    $given = '';
+    foreach (explode('&', $queryString) as $part) {
+        if ($part === '') {
+            continue;
         }
-        [$status, $json, $raw] = shopify_http(
+        [$k, $v] = array_pad(explode('=', $part, 2), 2, '');
+        $key = urldecode($k);
+        if ($key === 'hmac') {
+            $given = strtolower(urldecode($v));
+            continue;
+        }
+        if ($key === 'signature') {
+            continue;
+        }
+        $pairs[] = [$key, $k, $v];
+    }
+    if ($given === '' || $secret === '') {
+        return false;
+    }
+    usort($pairs, fn($a, $b) => strcmp($a[0], $b[0]));
+    $raw = implode('&', array_map(fn($p) => $p[1] . '=' . $p[2], $pairs));
+    $decoded = implode('&', array_map(fn($p) => $p[0] . '=' . urldecode($p[2]), $pairs));
+    foreach ([$raw, $decoded] as $message) {
+        if (hash_equals(hash_hmac('sha256', $message, $secret), $given)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Trades the callback's code for an offline token and saves it.
+function shopify_exchange_code(string $shop, string $code): array
+{
+    [$status, $json] = shopify_http(
+        (getenv('SHOPIFY_TEST_BASE') ?: 'https://' . $shop) . '/admin/oauth/access_token',
+        ['Content-Type: application/x-www-form-urlencoded'],
+        http_build_query([
+            'client_id'     => (string)config('shopify.client_id'),
+            'client_secret' => (string)config('shopify.client_secret'),
+            'code'          => $code,
+        ])
+    );
+    if ($status !== 200 || empty($json['access_token'])) {
+        $detail = trim((string)($json['error'] ?? '') . ' ' . (string)($json['error_description'] ?? ''));
+        throw new ShopifyError('Shopify did not return a token (HTTP ' . $status . ($detail !== '' ? ', ' . $detail : '') . '). Start again from /shopify/install.php.');
+    }
+    $token = [
+        'shop'         => $shop,
+        'access_token' => (string)$json['access_token'],
+        'scope'        => (string)($json['scope'] ?? ''),
+        'connected_at' => time(),
+    ];
+    if (!empty($json['refresh_token'])) {
+        $token['refresh_token'] = (string)$json['refresh_token'];
+    }
+    if (!empty($json['expires_in'])) {
+        $token['expires_at'] = time() + (int)$json['expires_in'];
+    }
+    if (!empty($json['refresh_token_expires_in'])) {
+        $token['refresh_expires_at'] = time() + (int)$json['refresh_token_expires_in'];
+    }
+    shopify_token_save($token);
+    return $token;
+}
+
+// Returns the saved Admin token, refreshing it first if it expires soon and
+// Shopify gave us a refresh token. Non-expiring offline tokens never refresh.
+function shopify_admin_token(): string
+{
+    $t = shopify_token_read();
+    if (!$t) {
+        throw new ShopifyError(SHOPIFY_NOT_CONNECTED);
+    }
+    if (empty($t['expires_at']) || (int)$t['expires_at'] - SHOPIFY_TOKEN_MARGIN > time()) {
+        return $t['access_token'];
+    }
+    if (empty($t['refresh_token'])) {
+        throw new ShopifyError('The Shopify Admin token has expired. Reconnect at /shopify/install.php.');
+    }
+    return shopify_with_lock('admin_token_refresh', function () {
+        $t = shopify_token_read();
+        if (empty($t['expires_at']) || (int)$t['expires_at'] - SHOPIFY_TOKEN_MARGIN > time()) {
+            return $t['access_token'];
+        }
+        [$status, $json] = shopify_http(
             shopify_base() . '/admin/oauth/access_token',
             ['Content-Type: application/x-www-form-urlencoded'],
-            http_build_query(['grant_type' => 'client_credentials', 'client_id' => $clientId, 'client_secret' => $secret])
+            http_build_query([
+                'client_id'     => (string)config('shopify.client_id'),
+                'client_secret' => (string)config('shopify.client_secret'),
+                'grant_type'    => 'refresh_token',
+                'refresh_token' => (string)$t['refresh_token'],
+            ])
         );
         if ($status !== 200 || empty($json['access_token'])) {
-            $message = shopify_auth_error($status, $json, $raw);
-            shopify_cache_write('admin_token_error.json', ['at' => time(), 'message' => $message]);
-            error_log('Shopify auth failed: ' . $message);
-            throw new ShopifyError($message);
+            error_log('Shopify token refresh failed (HTTP ' . $status . ')');
+            throw new ShopifyError('Could not refresh the Shopify Admin token (HTTP ' . $status . '). Reconnect at /shopify/install.php.');
         }
-        shopify_cache_delete('admin_token_error.json');
-        $token = [
-            'access_token' => (string)$json['access_token'],
-            'scope'        => (string)($json['scope'] ?? ''),
-            'expires_at'   => time() + (int)($json['expires_in'] ?? 86399),
-            'fetched_at'   => time(),
-        ];
-        shopify_cache_write('admin_token.json', $token);
-        return $token['access_token'];
+        $t['access_token'] = (string)$json['access_token'];
+        $t['scope'] = (string)($json['scope'] ?? $t['scope']);
+        $t['refresh_token'] = (string)($json['refresh_token'] ?? $t['refresh_token']);
+        $t['expires_at'] = time() + (int)($json['expires_in'] ?? 3600);
+        shopify_token_save($t);
+        return $t['access_token'];
     });
-}
-
-// Scopes and expiry of the cached Admin token, without the token itself.
-function shopify_admin_token_info(): ?array
-{
-    $t = shopify_cache_read('admin_token.json');
-    return $t ? ['scope' => $t['scope'] ?? '', 'expires_at' => (int)$t['expires_at'], 'fetched_at' => (int)($t['fetched_at'] ?? 0)] : null;
 }
 
 function shopify_graphql_result(int $status, ?array $json, string $raw, string $api): array
@@ -217,18 +354,9 @@ function shopify_admin_graphql(string $query, array $variables = []): array
         json_encode(['query' => $query, 'variables' => (object)$variables])
     );
     if ($status === 401) {
-        // Token revoked early (secret rotated, app reinstalled). Drop it so the next call refreshes.
-        shopify_cache_delete('admin_token.json');
+        throw new ShopifyError('Shopify rejected the saved Admin token (the app may have been uninstalled). Reconnect at /shopify/install.php.');
     }
     return shopify_graphql_result($status, $json, $raw, 'Admin');
-}
-
-// With shopify.storefront_token set, the store runs on that token alone and
-// never asks for an Admin token: the catalog and live stock checks use the
-// Storefront API, and sold stock isn't pushed back to Shopify.
-function shopify_storefront_only(): bool
-{
-    return trim((string)config('shopify.storefront_token', '')) !== '';
 }
 
 // Headless channel tokens come as a public token or a private one (shpss_...).
@@ -242,56 +370,14 @@ function shopify_storefront_header(string $token): string
     return ($type === 'private' ? 'Shopify-Storefront-Private-Token: ' : 'X-Shopify-Storefront-Access-Token: ') . $token;
 }
 
-// Returns the Storefront token: from config, from the cache, or created once
-// through the Admin API and then cached.
+// The Headless channel token from config, used for every Storefront API call.
 function shopify_storefront_token(): string
 {
-    $configured = trim((string)config('shopify.storefront_token', ''));
-    if ($configured !== '') {
-        return $configured;
+    $token = trim((string)config('shopify.storefront_token', ''));
+    if ($token === '') {
+        throw new ShopifyError('Set shopify.storefront_token to the Headless channel token (Shopify admin > Sales channels > Headless > your storefront).');
     }
-    $cached = shopify_cache_read('storefront_token.json');
-    if (!empty($cached['access_token'])) {
-        return $cached['access_token'];
-    }
-    return shopify_with_lock('storefront_token', function () {
-        $cached = shopify_cache_read('storefront_token.json');
-        if (!empty($cached['access_token'])) {
-            return $cached['access_token'];
-        }
-        $data = shopify_admin_graphql(
-            'mutation StorefrontAccessTokenCreate($input: StorefrontAccessTokenInput!) {
-               storefrontAccessTokenCreate(input: $input) {
-                 userErrors { field message }
-                 storefrontAccessToken { accessToken title accessScopes { handle } }
-               }
-             }',
-            ['input' => ['title' => 'discount-yarn.com']]
-        );
-        $result = $data['storefrontAccessTokenCreate'] ?? [];
-        if (!empty($result['userErrors'])) {
-            throw new ShopifyError('Could not create a Storefront token: ' . implode('; ', array_column($result['userErrors'], 'message')));
-        }
-        $tok = $result['storefrontAccessToken'] ?? null;
-        if (empty($tok['accessToken'])) {
-            throw new ShopifyError('Could not create a Storefront token: Shopify returned none.');
-        }
-        shopify_cache_write('storefront_token.json', [
-            'access_token' => (string)$tok['accessToken'],
-            'scopes'       => array_column((array)($tok['accessScopes'] ?? []), 'handle'),
-            'created_at'   => time(),
-        ]);
-        return (string)$tok['accessToken'];
-    });
-}
-
-function shopify_storefront_token_info(): array
-{
-    if (trim((string)config('shopify.storefront_token', '')) !== '') {
-        return ['source' => 'config', 'scopes' => []];
-    }
-    $c = shopify_cache_read('storefront_token.json');
-    return $c ? ['source' => 'cache', 'scopes' => (array)($c['scopes'] ?? []), 'created_at' => (int)$c['created_at']] : ['source' => 'none', 'scopes' => []];
+    return $token;
 }
 
 function shopify_storefront_graphql(string $query, array $variables = []): array
@@ -301,7 +387,7 @@ function shopify_storefront_graphql(string $query, array $variables = []): array
         ['Content-Type: application/json', shopify_storefront_header(shopify_storefront_token())],
         json_encode(['query' => $query, 'variables' => (object)$variables])
     );
-    if (($status === 401 || $status === 403) && shopify_storefront_only()) {
+    if ($status === 401 || $status === 403) {
         throw new ShopifyError('Shopify refused the Storefront token (HTTP ' . $status . '). Copy it again from Shopify admin > Sales channels > Headless > your storefront. '
             . 'If it is the private token, set shopify.storefront_token_type to private; if public, set it to public.');
     }
@@ -315,70 +401,78 @@ function shopify_storefront_graphql(string $query, array $variables = []): array
     }
 }
 
-// Runs the connection checks used by the admin page and the CLI script.
-// Returns a list of [label, ok, detail] rows. Never includes token values.
+// Runs the connection checks used by the admin page and the CLI script:
+// shop name, product count (Storefront API) and stock for three products
+// (Admin API). Returns [label, ok, detail] rows. Never includes token values.
 function shopify_connection_report(): array
 {
     $rows = [];
     try {
         $rows[] = ['Shop domain', true, shopify_domain()];
+        $rows[] = ['Config file', true, CONFIG_FILE];
         $dir = realpath(shopify_cache_dir()) ?: shopify_cache_dir();
-        // The store folder is the document root on the server, also when run from the CLI.
         $docroot = realpath(__DIR__ . '/..') ?: '';
         $public = $docroot !== '' && str_starts_with($dir . '/', rtrim($docroot, '/') . '/');
         $rows[] = ['Cache folder', !$public, $dir . ($public ? ' (inside the web root: move it outside public_html)' : '')];
-        $rows[] = ['Config file', true, CONFIG_FILE];
     } catch (ShopifyError $ex) {
         $rows[] = ['Setup', false, $ex->getMessage()];
         return $rows;
     }
 
-    if (shopify_storefront_only()) {
-        $rows[] = ['Mode', true, 'Storefront token only (no Admin token). Sold stock is not lowered in Shopify automatically.'];
-        try {
-            $d = shopify_storefront_graphql('{ shop { name primaryDomain { url } }
-                products(first: 1) { nodes { title variants(first: 1) { nodes { quantityAvailable availableForSale } } } } }');
-            $first = $d['products']['nodes'][0] ?? null;
-            $rows[] = ['Shop (Storefront API)', true, ($d['shop']['name'] ?? '?') . ' (' . ($d['shop']['primaryDomain']['url'] ?? '') . ')'];
-            $rows[] = ['Products', $first !== null, $first !== null
-                ? 'Can read products and stock counts. First listed: ' . $first['title'] . '. Run a sync to count them all.'
-                : 'No products are available to this storefront. In Shopify, make the products available to the Headless sales channel.'];
-        } catch (ShopifyError $ex) {
-            $rows[] = ['Storefront API', false, $ex->getMessage()];
+    // Storefront API: shop name and a full product count.
+    try {
+        $count = 0;
+        $cursor = null;
+        $name = null;
+        for ($page = 0; $page < 100; $page++) {
+            $d = shopify_storefront_graphql(
+                'query Count($cursor: String) { shop { name } products(first: 250, after: $cursor) { pageInfo { hasNextPage endCursor } nodes { id } } }',
+                ['cursor' => $cursor]
+            );
+            $name = $name ?? ($d['shop']['name'] ?? '?');
+            $count += count((array)($d['products']['nodes'] ?? []));
+            if (empty($d['products']['pageInfo']['hasNextPage'])) {
+                break;
+            }
+            $cursor = $d['products']['pageInfo']['endCursor'];
         }
-        return $rows;
-    }
-
-    try {
-        shopify_admin_token(true);
-        $info = shopify_admin_token_info();
-        $rows[] = ['Admin token', true, 'OK, expires ' . date('M j, g:ia T', $info['expires_at']) . '. Scopes: ' . ($info['scope'] ?: 'none reported')];
-    } catch (ShopifyError $ex) {
-        $rows[] = ['Admin token', false, $ex->getMessage()];
-        return $rows;
-    }
-
-    try {
-        $d = shopify_admin_graphql('{ shop { name myshopifyDomain primaryDomain { url } currencyCode }
-            all: productsCount { count precision }
-            active: productsCount(query: "status:active") { count precision } }');
-        $shop = $d['shop'] ?? [];
-        $fmt = fn($c) => (int)($c['count'] ?? 0) . (($c['precision'] ?? 'EXACT') !== 'EXACT' ? '+' : '');
-        $rows[] = ['Shop (Admin API)', true, ($shop['name'] ?? '?') . ' (' . ($shop['primaryDomain']['url'] ?? $shop['myshopifyDomain'] ?? '') . ', ' . ($shop['currencyCode'] ?? '') . ')'];
-        $rows[] = ['Products (Admin API)', true, $fmt($d['active'] ?? []) . ' active of ' . $fmt($d['all'] ?? []) . ' total'];
-    } catch (ShopifyError $ex) {
-        $rows[] = ['Admin API', false, $ex->getMessage()];
-    }
-
-    try {
-        $d = shopify_storefront_graphql('{ shop { name } products(first: 1) { edges { node { title } } } }');
-        $info = shopify_storefront_token_info();
-        $first = $d['products']['edges'][0]['node']['title'] ?? null;
-        $rows[] = ['Storefront API', true, 'Shop "' . ($d['shop']['name'] ?? '?') . '", token from ' . $info['source']
-            . ($info['scopes'] ? ' (scopes: ' . implode(', ', $info['scopes']) . ')' : '')
-            . ($first !== null ? '. First listed product: ' . $first : '. No products are published to this app\'s sales channel yet.')];
+        $rows[] = ['Shop name', true, (string)$name];
+        $rows[] = ['Products (Storefront)', $count > 0, $count > 0 ? $count . ' available to the Headless channel'
+            : 'None. In Shopify, make the products available to the Headless sales channel.'];
     } catch (ShopifyError $ex) {
         $rows[] = ['Storefront API', false, $ex->getMessage()];
+    }
+
+    // Admin API: the saved OAuth token, then stock for three products.
+    try {
+        $t = shopify_token_read();
+    } catch (ShopifyError $ex) {
+        $rows[] = ['Admin connection', false, $ex->getMessage()];
+        return $rows;
+    }
+    if (!$t) {
+        $rows[] = ['Admin connection', false, SHOPIFY_NOT_CONNECTED];
+        return $rows;
+    }
+    $rows[] = ['Admin connection', true, 'Connected to ' . ($t['shop'] ?? '?') . ' on ' . date('M j, Y', (int)($t['connected_at'] ?? time()))
+        . '. Scopes: ' . (($t['scope'] ?? '') ?: 'none reported')
+        . (!empty($t['expires_at']) ? '. Token renews automatically (expires ' . date('M j, g:ia', (int)$t['expires_at']) . ')' : '')];
+    try {
+        $d = shopify_admin_graphql('{ products(first: 3, query: "status:active") { nodes {
+            title totalInventory variants(first: 5) { nodes { title inventoryQuantity } } } } }');
+        $products = (array)($d['products']['nodes'] ?? []);
+        if (!$products) {
+            $rows[] = ['Inventory (Admin)', false, 'No active products found.'];
+        }
+        foreach ($products as $p) {
+            $parts = [];
+            foreach ((array)($p['variants']['nodes'] ?? []) as $v) {
+                $parts[] = ($v['title'] === 'Default Title' ? 'Stock' : $v['title']) . ': ' . ($v['inventoryQuantity'] ?? 'not tracked');
+            }
+            $rows[] = ['Inventory (Admin)', true, $p['title'] . ', ' . (int)($p['totalInventory'] ?? 0) . ' total (' . implode(', ', $parts) . ')'];
+        }
+    } catch (ShopifyError $ex) {
+        $rows[] = ['Inventory (Admin)', false, $ex->getMessage()];
     }
     return $rows;
 }

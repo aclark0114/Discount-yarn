@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['ship']) && $order['status'] === 'paid') {
         db()->prepare("UPDATE orders SET status = 'shipped', shipped_at = ?, tracking_number = ?, admin_notes = ? WHERE id = ?")
             ->execute([date('Y-m-d H:i:s'), $tracking, $notes, $id]);
-        if (shopify_storefront_only()) {
+        if (!shopify_can_push_stock()) {
             shopify_mark_handled_by_hand($id);
         }
         $sent = '';
@@ -47,9 +47,9 @@ admin_header('Order #' . strtoupper($order['public_id']));
   <p><?= e(ucfirst($order['status'])) ?><?= $order['paid_at'] ? ', paid ' . e(date('M j, Y g:ia', strtotime($order['paid_at']))) : '' ?></p>
 </div>
 <?php if (in_array($order['status'], ['paid', 'shipped'], true)): ?>
-  <?php if (shopify_storefront_only() && !$order['inventory_pushed_at']): ?>
-    <p class="notice">Lower these skeins in Shopify by hand when you ship (the store uses a Storefront token, which can't change stock). Until you mark the order shipped, they are held back on this site.</p>
-  <?php elseif (shopify_storefront_only()): ?>
+  <?php if (!shopify_can_push_stock() && !$order['inventory_pushed_at']): ?>
+    <p class="notice">Lower these skeins in Shopify by hand when you ship (the Shopify connection can't change stock without the write_inventory scope). Until you mark the order shipped, they are held back on this site.</p>
+  <?php elseif (!shopify_can_push_stock()): ?>
     <p class="notice">Marked shipped <?= e(date('M j, g:ia', strtotime($order['inventory_pushed_at']))) ?>. Shopify stock is updated by hand in this mode.</p>
   <?php elseif ($order['inventory_pushed_at']): ?>
     <p class="notice">Stock subtracted in Shopify <?= e(date('M j, g:ia', strtotime($order['inventory_pushed_at']))) ?>.</p>

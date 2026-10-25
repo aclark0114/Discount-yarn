@@ -247,8 +247,8 @@ function shopify_pick_location(string $inventoryItemId): string
 // Records success or the error on the order. Returns true when pushed.
 function shopify_push_order_inventory(int $orderId): bool
 {
-    if (shopify_storefront_only()) {
-        // A Storefront token can't change stock; see shopify_mark_handled_by_hand().
+    if (!shopify_can_push_stock()) {
+        // No Admin token with write_inventory: stock is lowered by hand, see shopify_mark_handled_by_hand().
         return false;
     }
     $order = order_by_id($orderId);
@@ -306,8 +306,8 @@ function shopify_push_order_inventory(int $orderId): bool
     return true;
 }
 
-// Storefront-only mode: stock is lowered in Shopify by hand when the order
-// ships, so shipping ends the hold-back for its skeins.
+// Without write_inventory, stock is lowered in Shopify by hand when the
+// order ships, so shipping ends the hold-back for its skeins.
 function shopify_mark_handled_by_hand(int $orderId): void
 {
     db()->prepare('UPDATE orders SET inventory_pushed_at = ?, inventory_push_error = NULL WHERE id = ? AND inventory_pushed_at IS NULL')
@@ -333,7 +333,7 @@ function shopify_sync_catalog(): array
         $started = time();
         $stats = ['products' => 0, 'variants' => 0, 'added' => 0, 'updated' => 0, 'hidden' => 0, 'seconds' => 0];
         // Push sold stock first so the counts read back below already include it.
-        $stats['pushed'] = shopify_storefront_only() ? 0 : shopify_push_pending_orders();
+        $stats['pushed'] = shopify_can_push_stock() ? shopify_push_pending_orders() : 0;
         $storefront = shopify_storefront_only();
         $held = shopify_units_held();
         $seen = [];

@@ -48,11 +48,19 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
 - **Shopify settings.**
   - `shop_domain`: the store's `something.myshopify.com` address (Shopify admin > Settings > Domains), not starshollowyarns.com.
   - `client_id` and `client_secret`: from Dev Dashboard > the app > Settings.
-  - `storefront_token`: can stay blank. The store creates one through the Admin API the first time it's needed and caches it.
-- **Cache folder.** `cache_dir` defaults to `/home/xwy78w88pv1w/discount-yarn-cache`, next to the config file. It holds the Admin token (renewed automatically about 5 minutes before its 24 hour expiry) and the Storefront token. It must be writable and outside `public_html`.
-- **Test it.** Open `/admin/shopify.php` and click Run connection test, or in cPanel Terminal run `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_check.php`. Either one shows the shop name, product count, granted scopes and a Storefront API check. Tokens are never shown.
+  - `storefront_token`: the Headless sales channel's public token (Shopify admin > Sales channels > Headless > your storefront). Used for every Storefront API call. A private `shpss_` token also works; `storefront_token_type` picks the header if the guess is wrong.
+  - `scopes` (default `read_products,read_inventory`) and `redirect_uri` (default `https://discount-yarn.com/shopify/callback.php`, which must match the app exactly).
+- **Connect the Admin API (OAuth).** The app lives in a different Shopify organization from the store, so the store connects with the authorization code grant:
+  1. Open `https://discount-yarn.com/shopify/install.php`. It sends you to Shopify for the store in `shop_domain`, and no other.
+  2. A Stars Hollow staff member with permission to install apps approves it.
+  3. Shopify returns to `/shopify/callback.php`. That page checks the state and the hmac, trades the code for an offline token, and shows "Connected to …".
+  - **Where the token goes:** `shopify_token.json`, next to the config file, with permissions 600. That folder must be outside `public_html`, or connecting is refused.
+  - **Reconnecting:** a `shopify_connected.lock` file is written beside the token. While it exists, both pages refuse to run until the admin password is entered on the install page. To start over completely, delete the lock and token files.
+  - **Before connecting:** every admin page shows a "Connect to Shopify" message, and the catalog syncs through the Storefront token only.
+- **Cache folder.** `cache_dir` defaults to `/home/xwy78w88pv1w/discount-yarn-cache`, next to the config file. It holds the sync status and lock files. It must be writable and outside `public_html`.
+- **Test it.** Open `/admin/shopify.php` and click Run connection test, or in cPanel Terminal run `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_check.php`. It shows the shop name, the product count from the Storefront API, the Admin connection and scopes, and stock for three products from the Admin API. Tokens are never shown.
 - **Database.** Run `schema_v2_shopify.sql`, then `schema_v3_pricing_groups.sql`, then `schema_v4_images.sql`, in phpMyAdmin once each, after `schema.sql`. Run them **before** deploying the code that needs them.
-- **App scopes.** The Dev Dashboard app needs `read_products`, `read_inventory` and `write_inventory`. After adding a scope, release a new app version and approve it on the store.
+- **App scopes.** The connection asks for `scopes` from the config, `read_products,read_inventory` by default. To have sales lower Shopify stock automatically, add `write_inventory` to the app and to `scopes`, then reconnect. Without it, lower stock in Shopify by hand when you ship. Until an order is marked shipped, its skeins are held back on this site.
 - **Sync.** Add a cron job every 15 minutes: `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/shopify_sync.php`. To refresh right away, use Sync catalog now on `/admin/shopify.php`. Pages always read the local copy, so the site stays up if Shopify is slow or down.
 - **How it maps.**
   - Each Shopify product gets one card in the shop and one page, with a picker for its colorways (variants). Sold-out colorways are shown but can't be picked. Vendor becomes brand.
@@ -60,19 +68,15 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - Weight is guessed from the product type, tags or a "Weight" option, and fiber from a tag such as `100% merino` or `fiber: alpaca`.
   - Only active Shopify products are copied. Products that are deleted, archived or set to draft disappear from the store on the next sync.
 - **Prices (discount tiers).** In admin > Pricing, choose a tier for the whole store, for each brand, and for any single product. A product's own tier beats its brand's, and a brand's beats the store default. Shoppers pay Shopify's price less the tier. The struck-through price is the higher of Shopify's price and its compare-at price. Changes apply immediately. The tiers on offer come from `discount_buckets` in the config (default 10, 25 and 50 percent; "No discount" is always available).
-- **Stock.** When Stripe confirms a payment, the store subtracts the skeins from Shopify, so Stars Hollow can't sell them again.
+- **Stock.** With `write_inventory` granted, the store subtracts the skeins from Shopify when Stripe confirms a payment, so Stars Hollow can't sell them again.
   - **Which location:** the one in `shopify.location_id`, or the location with the most stock if that's blank.
   - **Duplicates:** each order is sent with an idempotency key and only once.
   - **If Shopify refuses or can't be reached:** the order page shows why, with a Retry now button, and the sync cron retries every 15 minutes. Until it succeeds, those skeins are held back on this site.
   - **Before Stripe:** right before sending a shopper to Stripe, checkout asks Shopify for the live count and price. If either changed, the shopper goes back to the cart to review it. If Shopify can't be reached, checkout uses the last sync.
 - **Editing.** Synced yarn can't be edited in admin or by CSV import, because the next sync would overwrite it. Change it in Shopify instead. Featuring a yarn on the home page still works here.
-- **Storefront-only mode.** If `shopify.storefront_token` is set, the store uses only that token and never requests an Admin token, so `client_id` and `client_secret` can stay blank.
-  - **Where the token comes from:** Shopify admin > Sales channels > Headless > your storefront. Either the public or the private token works. The store tells them apart by the `shpss_` prefix that private tokens have, or set `storefront_token_type` to `public` or `private`.
-  - **Permissions:** under Storefront API permissions, turn on product listings and **Read product inventory** (`unauthenticated_read_product_inventory`), or stock counts can't be read. Make the products available to the Headless channel.
-  - **What changes:** the catalog sync and the live stock check at checkout use the Storefront API. Only products available to that channel are copied.
-  - **Sold stock:** a Storefront token can't change Shopify stock, so lower it in Shopify by hand when you ship. Until an order is marked shipped in admin, its skeins are held back on this site.
-  - **Switching back:** clear `storefront_token` to go back to the Admin token, which lowers Shopify stock automatically.
-- **`shop_not_permitted`.** This error means the Dev Dashboard app belongs to a different Shopify organization than the store. Create the app in the organization that owns the store, install it, and update the client ID and secret. After a failed token request, the store waits 5 minutes before trying again on page loads. The test page always tries again straight away.
+- **Before the Admin API is connected.** The catalog sync and the live stock check use the Storefront token alone.
+  - **Storefront permissions:** in the Headless channel, turn on product listings and **Read product inventory** (`unauthenticated_read_product_inventory`), and make the products available to that channel.
+  - **Once connected:** the sync switches to the Admin API.
 
 ## Adding inventory
 

@@ -5,16 +5,17 @@
 // Neither copy is committed or deployed. Never commit real values.
 
 return [
-    // Shopify (Stars Hollow store). Dev Dashboard app with scopes
-    // read_products, read_inventory, unauthenticated_read_product_listings.
+    // Shopify (Stars Hollow store).
+    // Admin API: OAuth authorization code grant. Open /shopify/install.php once
+    // to connect; the token is saved as shopify_token.json next to this file.
     'shopify' => [
         'shop_domain'      => 'REPLACE.myshopify.com', // the *.myshopify.com handle, NOT starshollowyarns.com
         'api_version'      => '2026-10',
         'client_id'        => '',                      // Dev Dashboard > app > Settings
         'client_secret'    => '',                      // Dev Dashboard > app > Settings
-        // Set this to run on a Storefront token alone (Headless sales channel):
-        // no Admin token, no client ID/secret needed, and sold stock is
-        // lowered in Shopify by hand. Blank uses the client credentials above.
+        'scopes'           => 'read_products,read_inventory', // add ,write_inventory to lower Shopify stock after sales
+        'redirect_uri'     => 'https://discount-yarn.com/shopify/callback.php', // must match the app exactly
+        // Storefront API: the Headless sales channel token.
         'storefront_token' => '',
         'storefront_token_type' => 'auto',             // auto, public or private (private tokens start shpss_)
         // Optional: the Shopify location to take sold stock from, e.g.
