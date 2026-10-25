@@ -18,22 +18,22 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 
 ## One-time setup
 
-1. **Domain.** In cPanel, add the store's domain as an addon domain. Note its document root, e.g. `public_html/yourdomain.com`.
-2. **Deploy path.** In `.cpanel.yml`, replace `CHANGE_ME_DOMAIN` with that folder name. Deploys refuse to run until you do.
+1. **Domain.** In cPanel, add `discount-yarn.com` as an addon domain with document root `public_html/discount-yarn.com` (the path `.cpanel.yml` deploys to). Turn on AutoSSL so it serves over https.
+2. **Same cPanel account.** `.cpanel.yml` uses the same cPanel home folder as Leafwood. If the store is on a different hosting account, change the path in `DEPLOYPATH`.
 3. **Database.** cPanel > MySQL Databases: create a database and a user, give the user all privileges on it. Open phpMyAdmin, select the database, and run `schema.sql`.
 4. **Git deploy.** cPanel > Git Version Control: clone this repo, then Update from Remote and Deploy HEAD Commit (same flow as Leafwood).
 5. **Config.** In cPanel File Manager, copy `config.sample.php` to `config.php` in the document root and fill it in:
-   - `base_url`, `support_email`, `owner_email`, store name and tagline.
+   - `base_url` (`https://discount-yarn.com`), `support_email`, `owner_email`, store name and tagline. The sample already has discount-yarn.com addresses; change them if you use different mailboxes.
    - `db`: the database name, user and password from step 3.
    - `admin.password_hash`: run `php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'` (cPanel Terminal works) and paste the result.
 6. **Stripe (Leafwood account).**
    - Developers > API keys > Create restricted key. Give it **Write** on *Checkout Sessions* and nothing else. Put it in `stripe.secret_key`.
-   - Developers > Webhooks > Add endpoint: `https://yourdomain.com/webhook.php`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`. Copy the signing secret into `stripe.webhook_secret`.
+   - Developers > Webhooks > Add endpoint: `https://discount-yarn.com/webhook.php`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`. Copy the signing secret into `stripe.webhook_secret`.
    - Every store payment is tagged with `metadata.store = discount-yarn` and described as "Discount Yarn order #...", so it's easy to tell apart from Leafwood client invoices in Stripe. The webhook ignores anything without that tag.
    - Optional: set `statement_descriptor_suffix` so card statements read e.g. `LEAFWOOD* DISCOUNT YARN`.
    - Optional: once Stripe Tax is set up, set `automatic_tax` to `true`.
-7. **Postmark.** Create a new server for the store. Under its Sender Signatures, verify the from address or the whole domain (add the DKIM and Return-Path DNS records in cPanel Zone Editor). Copy the server's API token into `postmark.server_token`.
-8. **Cron.** cPanel > Cron Jobs, once a day: `php -q /home/<cpanel-user>/public_html/<domain>/cron/expire_pending.php`
+7. **Postmark.** Create a new server for the store. Under Sender Signatures, verify the `discount-yarn.com` domain (add the DKIM and Return-Path DNS records in cPanel Zone Editor). Copy the server's API token into `postmark.server_token`.
+8. **Cron.** cPanel > Cron Jobs, once a day: `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/expire_pending.php`
 9. **Test.** Use a Stripe test key and test webhook secret first, buy something with card `4242 4242 4242 4242`, and confirm the order shows in `/admin/orders.php` and the emails arrive. Then switch to live keys.
 
 ## Adding inventory

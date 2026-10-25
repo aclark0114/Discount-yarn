@@ -1,10 +1,9 @@
 ---
-# Deploys this repo into the store's document root. Set DEPLOYPATH to the
-# addon domain's folder before the first deploy. rsync never deletes, so a
-# file removed from the repo stays on the server until removed by hand.
+# Deploys this repo into the discount-yarn.com document root. rsync never
+# deletes, so a file removed from the repo stays on the server until
+# removed by hand.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/xwy78w88pv1w/public_html/CHANGE_ME_DOMAIN/
-    - if echo "$DEPLOYPATH" | grep -q CHANGE_ME; then echo "Set DEPLOYPATH in .cpanel.yml first"; exit 1; fi
+    - export DEPLOYPATH=/home/xwy78w88pv1w/public_html/discount-yarn.com/
     - /bin/rsync -rv --no-perms --no-owner --no-group --exclude='.git' --exclude='.gitignore' --exclude='.cpanel.yml' --exclude='README.md' --exclude='CLAUDE.md' --exclude='/config.php' --include='/uploads/.htaccess' --exclude='/uploads/*' --exclude='*.zip' --exclude='*.bak' --exclude='*.sql' --exclude='error_log' ./ $DEPLOYPATH
     - /bin/mkdir -p ${DEPLOYPATH}uploads && /bin/chmod 755 ${DEPLOYPATH}uploads

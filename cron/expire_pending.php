@@ -1,7 +1,7 @@
 <?php
 // Cron (daily): marks checkout sessions older than a day that never paid as
 // expired, in case Stripe's checkout.session.expired webhook was missed.
-//   php -q /home/<user>/public_html/<domain>/cron/expire_pending.php
+//   php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/expire_pending.php
 
 if (PHP_SAPI !== 'cli' || isset($_SERVER['REQUEST_METHOD'])) {
     http_response_code(404);

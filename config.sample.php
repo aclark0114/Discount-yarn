@@ -6,9 +6,9 @@ return [
     // Store identity
     'store_name'    => 'Discount Yarn',
     'tagline'       => 'Good yarn. Better prices.',
-    'base_url'      => 'https://www.example.com',   // no trailing slash
-    'support_email' => 'hello@example.com',          // shown to shoppers, reply-to on emails
-    'owner_email'   => 'orders@example.com',         // gets a copy of every new order
+    'base_url'      => 'https://discount-yarn.com',  // no trailing slash
+    'support_email' => 'hello@discount-yarn.com',         // shown to shoppers, reply-to on emails
+    'owner_email'   => 'orders@discount-yarn.com',        // gets a copy of every new order
 
     // MySQL (create the database and user in cPanel > MySQL Databases)
     'db' => [
@@ -19,7 +19,7 @@ return [
 
     // Stripe (Leafwood Advisory account). Use a restricted key with write
     // access to Checkout Sessions only. The webhook secret comes from the
-    // endpoint you add in Stripe for https://<domain>/webhook.php
+    // endpoint you add in Stripe for https://discount-yarn.com/webhook.php
     'stripe' => [
         'secret_key'     => 'rk_live_CHANGE_ME',
         'webhook_secret' => 'whsec_CHANGE_ME',
@@ -32,7 +32,7 @@ return [
     // Postmark: the new server for this store. Server API token, not the account token.
     'postmark' => [
         'server_token'   => 'CHANGE_ME',
-        'from'           => 'Discount Yarn <orders@example.com>',  // must be a verified sender signature or domain
+        'from'           => 'Discount Yarn <orders@discount-yarn.com>',  // must be a verified sender signature or domain
         'message_stream' => 'outbound',
     ],
 
