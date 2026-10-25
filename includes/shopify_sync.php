@@ -19,12 +19,43 @@ const SHOPIFY_VARIANT_FIELDS = 'id sku title price compareAtPrice inventoryQuant
     selectedOptions { name value }
     media(first: 1) { nodes { ... on MediaImage { image { url } } } }';
 
-// Admin GraphQL with a short wait-and-retry when Shopify throttles us.
+// The same variant fields from the Storefront API, reshaped by
+// storefront_to_admin_product() into what the rest of the sync expects.
+const STOREFRONT_VARIANT_FIELDS = 'id sku title price { amount } compareAtPrice { amount }
+    availableForSale quantityAvailable selectedOptions { name value } image { url }';
+
+function storefront_to_admin_variant(array $v): array
+{
+    return [
+        'id'                => $v['id'],
+        'sku'               => $v['sku'] ?? '',
+        'title'             => $v['title'] ?? '',
+        'price'             => $v['price']['amount'] ?? null,
+        'compareAtPrice'    => $v['compareAtPrice']['amount'] ?? null,
+        'inventoryQuantity' => $v['quantityAvailable'] ?? null,
+        'availableForSale'  => $v['availableForSale'] ?? false,
+        'inventoryItem'     => null,
+        'selectedOptions'   => $v['selectedOptions'] ?? [],
+        'media'             => ['nodes' => isset($v['image']['url']) ? [['image' => ['url' => $v['image']['url']]]] : []],
+    ];
+}
+
+function storefront_to_admin_product(array $p): array
+{
+    $p['featuredMedia'] = isset($p['featuredImage']['url']) ? ['preview' => ['image' => ['url' => $p['featuredImage']['url']]]] : null;
+    $p['media'] = ['nodes' => array_map(fn($i) => ['image' => $i], (array)($p['images']['nodes'] ?? []))];
+    $p['variants']['nodes'] = array_map('storefront_to_admin_variant', (array)($p['variants']['nodes'] ?? []));
+    unset($p['featuredImage'], $p['images']);
+    return $p;
+}
+
+// Admin or Storefront GraphQL (by mode) with a short wait-and-retry when
+// Shopify throttles us.
 function shopify_sync_query(string $query, array $variables): array
 {
     for ($try = 1; ; $try++) {
         try {
-            return shopify_admin_graphql($query, $variables);
+            return shopify_storefront_only() ? shopify_storefront_graphql($query, $variables) : shopify_admin_graphql($query, $variables);
         } catch (ShopifyError $ex) {
             if ($try >= 5 || stripos($ex->getMessage(), 'throttled') === false) {
                 throw $ex;
@@ -216,6 +247,10 @@ function shopify_pick_location(string $inventoryItemId): string
 // Records success or the error on the order. Returns true when pushed.
 function shopify_push_order_inventory(int $orderId): bool
 {
+    if (shopify_storefront_only()) {
+        // A Storefront token can't change stock; see shopify_mark_handled_by_hand().
+        return false;
+    }
     $order = order_by_id($orderId);
     if (!$order || $order['inventory_pushed_at'] !== null || !in_array($order['status'], ['paid', 'shipped'], true)) {
         return false;
@@ -271,6 +306,14 @@ function shopify_push_order_inventory(int $orderId): bool
     return true;
 }
 
+// Storefront-only mode: stock is lowered in Shopify by hand when the order
+// ships, so shipping ends the hold-back for its skeins.
+function shopify_mark_handled_by_hand(int $orderId): void
+{
+    db()->prepare('UPDATE orders SET inventory_pushed_at = ?, inventory_push_error = NULL WHERE id = ? AND inventory_pushed_at IS NULL')
+        ->execute([date('Y-m-d H:i:s'), $orderId]);
+}
+
 // Retries every order whose stock hasn't reached Shopify yet.
 function shopify_push_pending_orders(): int
 {
@@ -290,14 +333,28 @@ function shopify_sync_catalog(): array
         $started = time();
         $stats = ['products' => 0, 'variants' => 0, 'added' => 0, 'updated' => 0, 'hidden' => 0, 'seconds' => 0];
         // Push sold stock first so the counts read back below already include it.
-        $stats['pushed'] = shopify_push_pending_orders();
+        $stats['pushed'] = shopify_storefront_only() ? 0 : shopify_push_pending_orders();
+        $storefront = shopify_storefront_only();
         $held = shopify_units_held();
         $seen = [];
         $seenProducts = [];
         $pdo = db();
         $find = $pdo->prepare('SELECT * FROM products WHERE shopify_variant_id = ?');
 
-        $query = 'query Catalog($cursor: String) {
+        $query = $storefront ? 'query Catalog($cursor: String) {
+          products(first: ' . SHOPIFY_SYNC_PAGE . ', after: $cursor) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id title handle vendor productType tags description createdAt
+              featuredImage { url }
+              images(first: ' . SHOPIFY_SYNC_IMAGES . ') { nodes { url altText } }
+              variants(first: ' . SHOPIFY_SYNC_VARIANTS . ') {
+                pageInfo { hasNextPage endCursor }
+                nodes { ' . STOREFRONT_VARIANT_FIELDS . ' }
+              }
+            }
+          }
+        }' : 'query Catalog($cursor: String) {
           products(first: ' . SHOPIFY_SYNC_PAGE . ', after: $cursor, query: "status:active") {
             pageInfo { hasNextPage endCursor }
             nodes {
@@ -311,11 +368,12 @@ function shopify_sync_catalog(): array
             }
           }
         }';
+        $variantFields = $storefront ? STOREFRONT_VARIANT_FIELDS : SHOPIFY_VARIANT_FIELDS;
         $moreVariants = 'query MoreVariants($id: ID!, $cursor: String) {
           product(id: $id) {
             variants(first: ' . SHOPIFY_SYNC_VARIANTS . ', after: $cursor) {
               pageInfo { hasNextPage endCursor }
-              nodes { ' . SHOPIFY_VARIANT_FIELDS . ' }
+              nodes { ' . $variantFields . ' }
             }
           }
         }';
@@ -325,6 +383,9 @@ function shopify_sync_catalog(): array
             $data = shopify_sync_query($query, ['cursor' => $cursor]);
             $page = $data['products'] ?? ['nodes' => [], 'pageInfo' => ['hasNextPage' => false]];
             foreach ($page['nodes'] as $product) {
+                if ($storefront) {
+                    $product = storefront_to_admin_product($product);
+                }
                 $stats['products']++;
                 $seenProducts[(string)$product['id']] = true;
                 $stats['images'] = ($stats['images'] ?? 0) + shopify_save_gallery($product);
@@ -332,7 +393,8 @@ function shopify_sync_catalog(): array
                 $vInfo = $product['variants']['pageInfo'] ?? ['hasNextPage' => false];
                 while (!empty($vInfo['hasNextPage'])) {
                     $more = shopify_sync_query($moreVariants, ['id' => $product['id'], 'cursor' => $vInfo['endCursor']]);
-                    $variants = array_merge($variants, $more['product']['variants']['nodes'] ?? []);
+                    $extra = (array)($more['product']['variants']['nodes'] ?? []);
+                    $variants = array_merge($variants, $storefront ? array_map('storefront_to_admin_variant', $extra) : $extra);
                     $vInfo = $more['product']['variants']['pageInfo'] ?? ['hasNextPage' => false];
                 }
                 foreach ($variants as $variant) {
@@ -402,11 +464,20 @@ function shopify_revalidate_lines(array $lines): bool
         return false;
     }
     try {
-        $data = shopify_admin_graphql(
-            'query Live($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant {
-               id price compareAtPrice inventoryQuantity availableForSale } } }',
-            ['ids' => $ids]
-        );
+        if (shopify_storefront_only()) {
+            $data = shopify_storefront_graphql(
+                'query Live($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant {
+                   id price { amount } compareAtPrice { amount } quantityAvailable availableForSale } } }',
+                ['ids' => $ids]
+            );
+            $data['nodes'] = array_map(fn($n) => is_array($n) && isset($n['id']) ? storefront_to_admin_variant($n) : $n, (array)($data['nodes'] ?? []));
+        } else {
+            $data = shopify_admin_graphql(
+                'query Live($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant {
+                   id price compareAtPrice inventoryQuantity availableForSale } } }',
+                ['ids' => $ids]
+            );
+        }
     } catch (ShopifyError $ex) {
         error_log('Live stock check skipped: ' . $ex->getMessage());
         return false;

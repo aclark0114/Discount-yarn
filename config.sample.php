@@ -12,7 +12,11 @@ return [
         'api_version'      => '2026-10',
         'client_id'        => '',                      // Dev Dashboard > app > Settings
         'client_secret'    => '',                      // Dev Dashboard > app > Settings
-        'storefront_token' => '',                      // optional; created automatically if blank
+        // Set this to run on a Storefront token alone (Headless sales channel):
+        // no Admin token, no client ID/secret needed, and sold stock is
+        // lowered in Shopify by hand. Blank uses the client credentials above.
+        'storefront_token' => '',
+        'storefront_token_type' => 'auto',             // auto, public or private (private tokens start shpss_)
         // Optional: the Shopify location to take sold stock from, e.g.
         // gid://shopify/Location/123. Blank picks the location with the most stock.
         'location_id'      => '',

@@ -66,6 +66,12 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - **If Shopify refuses or can't be reached:** the order page shows why, with a Retry now button, and the sync cron retries every 15 minutes. Until it succeeds, those skeins are held back on this site.
   - **Before Stripe:** right before sending a shopper to Stripe, checkout asks Shopify for the live count and price. If either changed, the shopper goes back to the cart to review it. If Shopify can't be reached, checkout uses the last sync.
 - **Editing.** Synced yarn can't be edited in admin or by CSV import, because the next sync would overwrite it. Change it in Shopify instead. Featuring a yarn on the home page still works here.
+- **Storefront-only mode.** If `shopify.storefront_token` is set, the store uses only that token and never requests an Admin token, so `client_id` and `client_secret` can stay blank.
+  - **Where the token comes from:** Shopify admin > Sales channels > Headless > your storefront. Either the public or the private token works. The store tells them apart by the `shpss_` prefix that private tokens have, or set `storefront_token_type` to `public` or `private`.
+  - **Permissions:** under Storefront API permissions, turn on product listings and **Read product inventory** (`unauthenticated_read_product_inventory`), or stock counts can't be read. Make the products available to the Headless channel.
+  - **What changes:** the catalog sync and the live stock check at checkout use the Storefront API. Only products available to that channel are copied.
+  - **Sold stock:** a Storefront token can't change Shopify stock, so lower it in Shopify by hand when you ship. Until an order is marked shipped in admin, its skeins are held back on this site.
+  - **Switching back:** clear `storefront_token` to go back to the Admin token, which lowers Shopify stock automatically.
 - **`shop_not_permitted`.** This error means the Dev Dashboard app belongs to a different Shopify organization than the store. Create the app in the organization that owns the store, install it, and update the client ID and secret. After a failed token request, the store waits 5 minutes before trying again on page loads. The test page always tries again straight away.
 
 ## Adding inventory

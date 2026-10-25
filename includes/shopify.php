@@ -223,6 +223,25 @@ function shopify_admin_graphql(string $query, array $variables = []): array
     return shopify_graphql_result($status, $json, $raw, 'Admin');
 }
 
+// With shopify.storefront_token set, the store runs on that token alone and
+// never asks for an Admin token: the catalog and live stock checks use the
+// Storefront API, and sold stock isn't pushed back to Shopify.
+function shopify_storefront_only(): bool
+{
+    return trim((string)config('shopify.storefront_token', '')) !== '';
+}
+
+// Headless channel tokens come as a public token or a private one (shpss_...).
+// They are sent in different headers; storefront_token_type overrides the guess.
+function shopify_storefront_header(string $token): string
+{
+    $type = strtolower((string)config('shopify.storefront_token_type', 'auto'));
+    if ($type === 'auto') {
+        $type = str_starts_with($token, 'shpss_') ? 'private' : 'public';
+    }
+    return ($type === 'private' ? 'Shopify-Storefront-Private-Token: ' : 'X-Shopify-Storefront-Access-Token: ') . $token;
+}
+
 // Returns the Storefront token: from config, from the cache, or created once
 // through the Admin API and then cached.
 function shopify_storefront_token(): string
@@ -279,10 +298,21 @@ function shopify_storefront_graphql(string $query, array $variables = []): array
 {
     [$status, $json, $raw] = shopify_http(
         shopify_base() . '/api/' . shopify_api_version() . '/graphql.json',
-        ['Content-Type: application/json', 'X-Shopify-Storefront-Access-Token: ' . shopify_storefront_token()],
+        ['Content-Type: application/json', shopify_storefront_header(shopify_storefront_token())],
         json_encode(['query' => $query, 'variables' => (object)$variables])
     );
-    return shopify_graphql_result($status, $json, $raw, 'Storefront');
+    if (($status === 401 || $status === 403) && shopify_storefront_only()) {
+        throw new ShopifyError('Shopify refused the Storefront token (HTTP ' . $status . '). Copy it again from Shopify admin > Sales channels > Headless > your storefront. '
+            . 'If it is the private token, set shopify.storefront_token_type to private; if public, set it to public.');
+    }
+    try {
+        return shopify_graphql_result($status, $json, $raw, 'Storefront');
+    } catch (ShopifyError $ex) {
+        if (stripos($ex->getMessage(), 'quantityAvailable') !== false || stripos($ex->getMessage(), 'unauthenticated_read_product_inventory') !== false) {
+            throw new ShopifyError('The Storefront token can\'t read stock counts. In Shopify admin > Sales channels > Headless > your storefront > Storefront API permissions, turn on "Read product inventory" (unauthenticated_read_product_inventory) and save.');
+        }
+        throw $ex;
+    }
 }
 
 // Runs the connection checks used by the admin page and the CLI script.
@@ -300,6 +330,22 @@ function shopify_connection_report(): array
         $rows[] = ['Config file', true, CONFIG_FILE];
     } catch (ShopifyError $ex) {
         $rows[] = ['Setup', false, $ex->getMessage()];
+        return $rows;
+    }
+
+    if (shopify_storefront_only()) {
+        $rows[] = ['Mode', true, 'Storefront token only (no Admin token). Sold stock is not lowered in Shopify automatically.'];
+        try {
+            $d = shopify_storefront_graphql('{ shop { name primaryDomain { url } }
+                products(first: 1) { nodes { title variants(first: 1) { nodes { quantityAvailable availableForSale } } } } }');
+            $first = $d['products']['nodes'][0] ?? null;
+            $rows[] = ['Shop (Storefront API)', true, ($d['shop']['name'] ?? '?') . ' (' . ($d['shop']['primaryDomain']['url'] ?? '') . ')'];
+            $rows[] = ['Products', $first !== null, $first !== null
+                ? 'Can read products and stock counts. First listed: ' . $first['title'] . '. Run a sync to count them all.'
+                : 'No products are available to this storefront. In Shopify, make the products available to the Headless sales channel.'];
+        } catch (ShopifyError $ex) {
+            $rows[] = ['Storefront API', false, $ex->getMessage()];
+        }
         return $rows;
     }
 
