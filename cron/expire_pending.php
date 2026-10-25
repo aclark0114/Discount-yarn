@@ -14,3 +14,6 @@ $cutoff = date('Y-m-d H:i:s', time() - 86400);
 $st = db()->prepare("UPDATE orders SET status = 'expired' WHERE status = 'pending' AND created_at < ?");
 $st->execute([$cutoff]);
 echo $st->rowCount() . " pending orders expired\n";
+
+require __DIR__ . '/../includes/activity.php';
+echo activity_prune() . " visitor events older than " . ACTIVITY_KEEP_DAYS . " days removed\n";

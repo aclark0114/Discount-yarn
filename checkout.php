@@ -65,9 +65,14 @@ try {
 }
 
 if (!checkout_embedded()) {
+    require_once __DIR__ . '/includes/activity.php';
+    activity_log('checkout', ['path' => '/checkout.php', 'value_cents' => cart_subtotal($lines)]);
     header('Location: ' . $session['url'], true, 303);
     exit;
 }
+require_once __DIR__ . '/includes/activity.php';
+activity_log('checkout', ['path' => '/checkout.php', 'value_cents' => cart_subtotal($lines)]);
+
 $_SESSION['checkout'] = [
     'order'      => $order['public_id'],
     'session'    => $session['id'],

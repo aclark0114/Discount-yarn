@@ -16,6 +16,7 @@ if (!is_file($configFile)) {
     exit('Store is not configured yet. Copy config.sample.php to discount-yarn-config.php in your home folder.');
 }
 $CONFIG = require $configFile;
+date_default_timezone_set((string)($CONFIG['timezone'] ?? 'America/New_York'));
 define('CONFIG_FILE', realpath($configFile) ?: $configFile);
 
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {

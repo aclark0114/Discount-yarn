@@ -30,7 +30,7 @@ function admin_header(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> | <?= $store ?> admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=2">
+<link rel="stylesheet" href="/assets/admin.css?v=3">
 </head>
 <body>
 <header class="admin-bar">
@@ -40,6 +40,7 @@ function admin_header(string $title): void
     <a href="/admin/product_edit.php">Add product</a>
     <a href="/admin/import.php">CSV import</a>
     <a href="/admin/orders.php">Orders</a>
+    <a href="/admin/visitors.php">Visitors</a>
     <a href="/admin/pricing.php">Pricing</a>
     <a href="/admin/shopify.php">Shopify</a>
     <a href="/admin/stripe.php">Stripe</a>

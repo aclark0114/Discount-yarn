@@ -12,10 +12,11 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `about.php`, `shipping.php`, `sitemap.php`, `robots.txt` | Info pages and SEO |
 | `admin/` | Login, products (quick stock edits), add/edit product with photo, CSV import, orders, mark shipped |
 | `includes/` | Config, DB, cart, Stripe and Postmark clients (no Composer needed) |
-| `cron/expire_pending.php` | Daily cleanup of checkouts that never paid |
+| `cron/expire_pending.php` | Daily cleanup of checkouts that never paid, and of visitor data older than 180 days |
+| `track.php`, `includes/activity.php`, `admin/visitors.php` | First-party visitor activity and the admin Visitors page |
 | `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
 | `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
-| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql` | Database tables, run once each in phpMyAdmin, in order |
+| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `admin/pricing.php`, `includes/pricing.php` | Discount tiers for Shopify yarn |
 | `includes/catalog.php` | Grouped catalog: one card and one page per product, with a colorway picker |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
@@ -79,6 +80,21 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
 - **Before the Admin API is connected.** The catalog sync and the live stock check use the Storefront token alone.
   - **Storefront permissions:** in the Headless channel, turn on product listings and **Read product inventory** (`unauthenticated_read_product_inventory`), and make the products available to that channel.
   - **Once connected:** the sync switches to the Admin API.
+
+## Visitor activity
+
+`/admin/visitors.php` shows, for today or the last 7, 30 or 90 days:
+- **Summary:** who is on the site now, visitors, page views, and orders with revenue.
+- **Shopper funnel:** visited, viewed a product, added to cart, started checkout, ordered.
+- **Breakdowns:** visitors per day, most viewed products with add-to-cart counts, top pages, where visitors came from (referring site and UTM campaign tags), and devices.
+- **Recent activity:** a list of the latest events.
+
+How it works:
+- **Recording:** page views come from a small first-party ping in `assets/script.js` to `track.php`. Add-to-cart and checkout are recorded by the server.
+- **Who's left out:** bots, browsers with Do Not Track on, and logged-in admins.
+- **Privacy:** no IP addresses or tracking cookies are stored. A visitor is an anonymous ID that changes daily, so "visitors" means people per day. Data older than 180 days is deleted by the daily cron.
+- **Setup:** run `schema_v5_visitors.sql` in phpMyAdmin first. Until then, the page says so.
+- **Time zone:** times use `timezone` from the config (default `America/New_York`).
 
 ## Adding inventory
 

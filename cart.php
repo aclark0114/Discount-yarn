@@ -15,6 +15,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $have = (int)(cart_raw()[$id] ?? 0);
             $new = min($have + max(1, $qty), (int)$p['stock']);
             cart_set($id, $new);
+            if ($new > $have) {
+                require_once __DIR__ . '/includes/activity.php';
+                activity_log('add_to_cart', ['path' => '/product.php', 'product' => $p['group_slug'] ?: $p['slug'], 'value_cents' => effective_price($p) * ($new - $have)]);
+            }
             flash($new > $have
                 ? 'Added ' . $p['name'] . ' to your cart.'
                 : 'You already have all ' . (int)$p['stock'] . ' in stock in your cart.');

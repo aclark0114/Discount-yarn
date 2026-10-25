@@ -33,6 +33,7 @@ return [
     'store_name'    => 'Discount Yarn',
     'tagline'       => 'Good yarn. Better prices.',
     'base_url'      => 'https://discount-yarn.com',  // no trailing slash
+    'timezone'      => 'America/New_York',           // times in admin, emails and visitor stats
     'support_email' => 'hello@discount-yarn.com',         // shown to shoppers, reply-to on emails
     'owner_email'   => 'orders@discount-yarn.com',        // gets a copy of every new order
 

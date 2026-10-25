@@ -68,6 +68,21 @@
     form.addEventListener('change', function (ev) { if (ev.target.name === 'product_id') update(); });
   }
 
+  // First-party page view beacon (see track.php). Respects Do Not Track.
+  try {
+    if (navigator.doNotTrack !== '1') {
+      var beacon = new URLSearchParams();
+      beacon.set('p', location.pathname);
+      beacon.set('r', document.referrer || '');
+      beacon.set('q', location.search.slice(1, 400));
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/track.php', beacon);
+      } else {
+        fetch('/track.php', { method: 'POST', body: beacon, keepalive: true });
+      }
+    }
+  } catch (e) {}
+
   // Gentle fade-in for marked sections
   var items = document.querySelectorAll('.reveal');
   if (!('IntersectionObserver' in window)) {

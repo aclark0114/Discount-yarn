@@ -31,6 +31,17 @@ tr.inactive td { opacity: .55; }
 .report td:nth-child(2) { white-space: nowrap; }
 @media (max-width: 700px) { .report th { width: auto !important; } }
 .stock-input { width: 80px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 8px 0 20px; }
+.stats div { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 2px; }
+.stats strong { font-size: 1.6rem; line-height: 1.1; }
+.stats span { color: var(--muted); font-size: .85rem; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 160px; padding: 10px 10px 22px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); }
+.bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; min-width: 0; }
+.bar span { display: block; width: 100%; min-height: 2px; background: var(--green); border-radius: 2px 2px 0 0; }
+.bar small { position: absolute; bottom: -18px; font-size: .7rem; color: var(--muted); }
+.muted-note { color: var(--muted); font-size: .85rem; }
+.nowrap { white-space: nowrap; }
+@media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
 .edit { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; margin-top: 16px; display: grid; gap: 14px; }
 .edit label { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; }
 .edit .check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
