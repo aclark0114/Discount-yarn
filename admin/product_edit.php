@@ -28,6 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     if (isset($_POST['delete']) && $product) {
         // Keep the row for order history; just hide it.
+        if ($product['shopify_variant_id'] && products_have_hide_columns()) {
+            // Hide the whole product so the next Shopify sync doesn't bring it back.
+            products_set_hidden([(string)$product['group_slug']], true);
+            flash('Hidden from the store, all colorways. Put it back in Hide products.');
+            redirect('/admin/');
+        }
         db()->prepare('UPDATE products SET is_active = 0 WHERE id = ?')->execute([$id]);
         flash('Hidden from the store. Past orders keep their details.');
         redirect('/admin/');

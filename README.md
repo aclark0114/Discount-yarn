@@ -16,7 +16,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `track.php`, `includes/activity.php`, `admin/visitors.php` | First-party visitor activity and the admin Visitors page |
 | `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
 | `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
-| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql`, `schema_v7_email.sql`, `schema_v8_consent.sql` | Database tables, run once each in phpMyAdmin, in order |
+| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql`, `schema_v7_email.sql`, `schema_v8_consent.sql`, `schema_v9_hide.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `admin/pricing.php`, `includes/pricing.php` | Discount tiers for Shopify yarn |
 | `includes/catalog.php` | Grouped catalog: one card and one page per product, with a colorway picker |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
@@ -105,6 +105,14 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   1. Run `schema_v7_email.sql`, then `schema_v8_consent.sql`, in phpMyAdmin.
   2. In Postmark, add a **Broadcast** message stream to the store's server, named `broadcast` or whatever is in `postmark.broadcast_stream`.
   3. Set `mailing_address` in the config.
+
+## Hiding products
+
+Admin > **Hide products** searches every product for a phrase ("Stars Hollow" by default) in its name, brand, colorway, type, description, and in Shopify's tags, SEO title and description and photo alt text. Matching ignores case, spacing and apostrophes, so it also finds StarsHollow, starshollowyarns.com and Star's Hollow. Each match shows where the phrase appears.
+- **Hide or Show** one product with its button, or tick several and use Hide selected or Show selected. It works on the whole product, every colorway.
+- **Hidden stays hidden:** the Shopify sync keeps hidden products out of the store until you click Show. Products show "Hidden by you" on the Products page. Tick "List every product" to see and hide anything, matching or not.
+- **Showing a Shopify product** only puts it back live if the last sync still found it in Shopify.
+- **Setup:** run `schema_v9_hide.sql` in phpMyAdmin, deploy, then run a Shopify sync (admin > Shopify, or wait for the cron) so tags and SEO text are saved. Until that sync, only names and descriptions are searched.
 
 ## Admin password
 

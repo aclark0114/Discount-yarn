@@ -192,6 +192,7 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         'fiber'              => mb_substr(shopify_guess_fiber($product, $variant), 0, 160),
         'colorway'           => mb_substr($colorway, 0, 120),
         'description'        => (string)($product['description'] ?? ''),
+        'meta_text'          => shopify_meta_text($product),
         'price_cents'        => $regular,
         'sale_price_cents'   => $sale,
         'stock'              => max(0, $stock - $heldBack),
@@ -371,7 +372,7 @@ function shopify_sync_catalog(): array
           products(first: ' . SHOPIFY_SYNC_PAGE . ', after: $cursor) {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id title handle vendor productType tags description createdAt
+              id title handle vendor productType tags description createdAt seo { title description }
               featuredImage { url }
               images(first: ' . SHOPIFY_SYNC_IMAGES . ') { nodes { url altText } }
               variants(first: ' . SHOPIFY_SYNC_VARIANTS . ') {
@@ -384,7 +385,7 @@ function shopify_sync_catalog(): array
           products(first: ' . SHOPIFY_SYNC_PAGE . ', after: $cursor, query: "status:active") {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id title handle vendor productType tags description createdAt
+              id title handle vendor productType tags description createdAt seo { title description }
               featuredMedia { preview { image { url } } }
               media(first: ' . SHOPIFY_SYNC_IMAGES . ') { nodes { ... on MediaImage { image { url altText } } } }
               variants(first: ' . SHOPIFY_SYNC_VARIANTS . ') {
@@ -433,6 +434,10 @@ function shopify_sync_catalog(): array
                     if ($existing) {
                         // Keep admin-only choices made on this site.
                         $row['is_featured'] = (int)$existing['is_featured'];
+                        $row['is_active'] = empty($existing['admin_hidden']) ? 1 : 0;
+                    }
+                    if (!products_have_hide_columns()) {
+                        unset($row['meta_text']);   // schema_v9_hide.sql not run yet
                     }
                     save_product($row, $existing ? (int)$existing['id'] : null);
                     $stats[$existing ? 'updated' : 'added']++;
@@ -463,6 +468,17 @@ function shopify_sync_catalog(): array
         shopify_cache_write('catalog_sync.json', $stats);
         return $stats;
     });
+}
+
+// Shopify text that isn't shown on the product page: tags, SEO title and
+// description, and photo alt text. Kept so admin can search it.
+function shopify_meta_text(array $product): string
+{
+    $parts = [implode(', ', (array)($product['tags'] ?? [])), $product['seo']['title'] ?? '', $product['seo']['description'] ?? ''];
+    foreach ((array)($product['media']['nodes'] ?? []) as $m) {
+        $parts[] = $m['image']['altText'] ?? '';
+    }
+    return mb_substr(implode("\n", array_unique(array_filter(array_map('trim', array_map('strval', $parts))))), 0, 20000);
 }
 
 function shopify_last_sync(): ?array
@@ -535,7 +551,7 @@ function shopify_revalidate_lines(array $lines): bool
             $n + ['title' => 'Default Title', 'sku' => $p['sku']],
             (int)($held[$vid] ?? 0)
         );
-        $upd->execute([$row['stock'], $row['price_cents'], $row['sale_price_cents'], 1, (int)$p['id']]);
+        $upd->execute([$row['stock'], $row['price_cents'], $row['sale_price_cents'], empty($p['admin_hidden']) ? 1 : 0, (int)$p['id']]);
         $newUnit = $row['sale_price_cents'] ?? $row['price_cents'];
         if ($row['stock'] < $l['qty'] || $newUnit !== $l['unit']) {
             $changed = true;

@@ -124,6 +124,46 @@ function save_product(array $cols, ?int $id = null): int
     return (int)$pdo->lastInsertId();
 }
 
+// True once schema_v9_hide.sql has been run.
+function products_have_hide_columns(): bool
+{
+    static $have = null;
+    if ($have === null) {
+        try {
+            db()->query('SELECT admin_hidden, meta_text FROM products WHERE 1 = 0');
+            $have = true;
+        } catch (PDOException $ex) {
+            $have = false;
+        }
+    }
+    return $have;
+}
+
+// Takes whole products (every colorway) out of the store, or puts them back.
+// Hidden stays hidden through Shopify syncs. Putting back a Shopify product
+// only makes it live again if the last sync still found it in Shopify.
+function products_set_hidden(array $groupSlugs, bool $hide): int
+{
+    $groupSlugs = array_values(array_unique(array_filter(array_map('strval', $groupSlugs))));
+    if (!$groupSlugs) {
+        return 0;
+    }
+    $in = implode(', ', array_fill(0, count($groupSlugs), '?'));
+    if ($hide) {
+        $st = db()->prepare("UPDATE products SET admin_hidden = 1, is_active = 0 WHERE group_slug IN ($in)");
+        $st->execute($groupSlugs);
+        return $st->rowCount();
+    }
+    require_once __DIR__ . '/shopify_sync.php';
+    $last = shopify_last_sync();
+    $cut = $last && !empty($last['finished_at']) ? date('Y-m-d H:i:s', (int)$last['finished_at'] - (int)($last['seconds'] ?? 0) - 60) : '1970-01-01 00:00:00';
+    $st = db()->prepare("UPDATE products SET admin_hidden = 0,
+        is_active = CASE WHEN shopify_variant_id IS NULL OR synced_at IS NULL OR synced_at >= ? THEN 1 ELSE 0 END
+        WHERE group_slug IN ($in)");
+    $st->execute([$cut, ...$groupSlugs]);
+    return $st->rowCount();
+}
+
 function product_by_sku(string $sku): ?array
 {
     $st = db()->prepare('SELECT * FROM products WHERE sku = ?');

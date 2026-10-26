@@ -61,7 +61,7 @@ admin_header('Products');
         <td><?= e($p['weight']) ?></td>
         <td><?php if (percent_off($p)): ?><s><?= money((int)$p['price_cents']) ?></s> <?php endif; ?><?= money(effective_price($p)) ?></td>
         <td><?php if ($p['shopify_variant_id']): ?><span title="Synced from Shopify"><?= (int)$p['stock'] ?> <small>Shopify</small></span><?php else: ?><input class="stock-input" type="number" name="stock[<?= (int)$p['id'] ?>]" value="<?= (int)$p['stock'] ?>" aria-label="Stock for <?= e($p['name']) ?>"><?php endif; ?></td>
-        <td><?= $p['is_active'] ? ((int)$p['stock'] > 0 ? 'Live' : 'Sold out') : 'Hidden' ?><?= $p['is_featured'] ? ' ★' : '' ?></td>
+        <td><?= !empty($p['admin_hidden']) ? '<a href="/admin/hide.php?all=1">Hidden by you</a>' : ($p['is_active'] ? ((int)$p['stock'] > 0 ? 'Live' : 'Sold out') : 'Hidden') ?><?= $p['is_featured'] ? ' ★' : '' ?></td>
       </tr>
     <?php endforeach; ?>
     </tbody>

@@ -66,3 +66,18 @@ code { background: #efe5d3; padding: 1px 5px; border-radius: 4px; }
 .campaign { word-break: break-word; }
 .campaign small { display: block; color: var(--muted, #6f645b); font-size: 12px; }
 .narrow-form { max-width: 480px; }
+.hide-table .hits { font-size: .85rem; max-width: 420px; }
+.hide-table .hits div + div { margin-top: 4px; }
+.hide-table mark { background: #f6e3a1; padding: 0 2px; }
+.hide-table button { white-space: nowrap; }
+.hide-table tr.is-hidden td.status strong { color: var(--red); }
+@media (max-width: 640px) {
+  .hide-table thead { display: none; }
+  .hide-table, .hide-table tbody, .hide-table tr, .hide-table td { display: block; }
+  .hide-table tr { display: grid; grid-template-columns: 28px 52px 1fr; gap: 6px 8px; padding: 12px; border-bottom: 1px solid var(--line); }
+  .hide-table td { padding: 0; border: 0; }
+  .hide-table td.hits, .hide-table td.status { grid-column: 1 / -1; max-width: none; }
+  .hide-table td.status { display: flex; align-items: center; justify-content: space-between; }
+}
+.hide-table td.status { white-space: nowrap; }
+.hide-table td.status button { margin-left: 12px; }
