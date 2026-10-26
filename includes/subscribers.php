@@ -100,6 +100,7 @@ function send_confirmation(string $email, string $firstName, string $token, stri
         . '<p><a href="' . e($link) . '" style="display:inline-block;background:#2f5d50;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none">Yes, add me to the list</a></p>'
         . '<p style="font-size:13px;color:#7a6f66">If you didn\'t ask for this, ignore this email and you won\'t hear from us again.</p>');
     $text = "$hi\n\n$intro\n\nConfirm here: $link\n\nIf you didn't ask for this, ignore this email and you won't hear from us again.";
+    [$html, $text] = email_with_utm($html, $text, 'list-confirm', $source === 'invite' ? 'invite' : 'signup');
     return postmark_send($email, 'Please confirm your email for ' . $store, $html, $text, 'list-confirm');
 }
 
@@ -315,7 +316,9 @@ function blast_render(string $body, string $firstName): array
     return [$html, implode("\n\n", $text)];
 }
 
-function blast_message(string $subject, string $body, array $sub): array
+// $utmSource is 'newsletter' for real blasts and 'test-email' for tests and
+// previews, so test clicks don't count toward the campaign.
+function blast_message(string $subject, string $body, array $sub, string $utmSource = 'newsletter'): array
 {
     $store = (string)config('store_name');
     $address = trim((string)config('mailing_address'));
@@ -329,6 +332,7 @@ function blast_message(string $subject, string $body, array $sub): array
         . '<p style="max-width:560px;margin:16px auto 0;font-size:12px;color:#7a6f66;font-family:Arial,sans-serif;text-align:center">'
         . e($foot) . '<br>' . e($address) . '<br><a href="' . e($unsub) . '" style="color:#7a6f66">Unsubscribe</a></p></div>';
     $text .= "\n\n--\n$foot\n$address\nUnsubscribe: $unsub";
+    [$html, $text] = email_with_utm($html, $text, $utmSource, email_campaign($subject));
     return [
         'From'          => config('postmark.from'),
         'To'            => $sub['email'],
@@ -359,12 +363,12 @@ function blast_blocker(): string
 }
 
 // Sends to a list of subscriber rows in batches. Returns [sent, failed, error].
-function blast_send_to(string $subject, string $body, array $subs): array
+function blast_send_to(string $subject, string $body, array $subs, string $utmSource = 'newsletter'): array
 {
     $sent = $failed = 0;
     $error = '';
     foreach (array_chunk($subs, BLAST_BATCH) as $chunk) {
-        [$s, $f, $err] = postmark_batch(array_map(fn($sub) => blast_message($subject, $body, $sub), $chunk));
+        [$s, $f, $err] = postmark_batch(array_map(fn($sub) => blast_message($subject, $body, $sub, $utmSource), $chunk));
         $sent += $s;
         $failed += $f;
         $error = $error ?: $err;

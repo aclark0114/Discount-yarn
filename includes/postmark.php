@@ -89,6 +89,41 @@ function postmark_batch(array $messages): array
     return [$sent, count($messages) - $sent, $error];
 }
 
+// Adds UTM tags to a link to this store so admin > Visitors can show which
+// email brought people in. Other sites' links, unsubscribe links and links
+// that already carry their own utm_ tags are left alone.
+function email_utm_url(string $url, string $source, string $campaign): string
+{
+    $own = preg_replace('/^www\./', '', strtolower((string)parse_url((string)config('base_url'), PHP_URL_HOST)));
+    $host = preg_replace('/^www\./', '', strtolower((string)parse_url($url, PHP_URL_HOST)));
+    if ($host === '' || $host !== $own || str_contains($url, 'unsubscribe.php') || preg_match('/[?&]utm_/', $url)) {
+        return $url;
+    }
+    [$base, $frag] = array_pad(explode('#', $url, 2), 2, null);
+    $base .= (str_contains($base, '?') ? '&' : '?') . http_build_query([
+        'utm_source'   => $source,
+        'utm_medium'   => 'email',
+        'utm_campaign' => $campaign,
+    ]);
+    return $base . ($frag !== null ? '#' . $frag : '');
+}
+
+// Tags every store link in an email: the href of each HTML link and each web
+// address in the plain-text version. Returns [html, text].
+function email_with_utm(string $html, string $text, string $source, string $campaign): array
+{
+    $html = preg_replace_callback('/href="([^"]+)"/', fn($m) => 'href="' . e(email_utm_url(html_entity_decode($m[1], ENT_QUOTES), $source, $campaign)) . '"', $html);
+    $text = preg_replace_callback('#https?://[^\s<>]+[^\s<>.,;:!?)\]]#', fn($m) => email_utm_url($m[0], $source, $campaign), $text);
+    return [$html, $text];
+}
+
+// A short campaign name from an email subject, such as
+// 2026-10-27-going-going-4-yarns-about-to-be.
+function email_campaign(string $subject): string
+{
+    return date('Y-m-d') . '-' . rtrim(substr(slugify($subject), 0, 40), '-');
+}
+
 function order_items_for(int $orderId): array
 {
     $st = db()->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');

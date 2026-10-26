@@ -63,3 +63,5 @@ code { background: #efe5d3; padding: 1px 5px; border-radius: 4px; }
 .login { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 28px; width: 100%; max-width: 360px; display: grid; gap: 10px; }
 .login h1 { font-size: 1.3rem; }
 @media (max-width: 700px) { .cols, .order-cols { grid-template-columns: 1fr; } .search { flex-wrap: wrap; } }
+.campaign { word-break: break-word; }
+.campaign small { display: block; color: var(--muted, #6f645b); font-size: 12px; }

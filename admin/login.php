@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Admin login | <?= e(config('store_name')) ?></title>
-<link rel="stylesheet" href="/assets/admin.css?v=5">
+<link rel="stylesheet" href="/assets/admin.css?v=6">
 </head>
 <body class="login-page">
 <form class="login" method="post" action="/admin/login.php">

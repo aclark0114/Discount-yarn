@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($problems) {
             flash(implode(' ', $problems));
         } elseif ($action === 'preview') {
-            $m = blast_message($subject, $body, ['email' => 'preview@example.com', 'first_name' => 'Jane', 'token' => str_repeat('0', 32)]);
+            $m = blast_message($subject, $body, ['email' => 'preview@example.com', 'first_name' => 'Jane', 'token' => str_repeat('0', 32)], 'test-email');
             $preview = ['html' => $m['HtmlBody'], 'text' => $m['TextBody'], 'subject' => $subject];
         } elseif (($blocker = blast_blocker()) !== '') {
             flash($blocker);
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!subscriber_email_ok($to)) {
                 flash('"' . $to . '" is not an email address.');
             } else {
-                [$s, , $err] = blast_send_to($subject, $body, [['email' => $to, 'first_name' => trim(mb_substr((string)($_POST['test_name'] ?? ''), 0, 100)), 'token' => str_repeat('0', 32)]]);
+                [$s, , $err] = blast_send_to($subject, $body, [['email' => $to, 'first_name' => trim(mb_substr((string)($_POST['test_name'] ?? ''), 0, 100)), 'token' => str_repeat('0', 32)]], 'test-email');
                 flash($s ? 'Test sent to ' . $to . '.' : 'Test failed: ' . $err);
             }
         } elseif (empty($_POST['confirm_send'])) {
@@ -152,7 +152,7 @@ admin_header('Email');
   <label>Message
     <textarea name="body" rows="12" required placeholder="Hi {first_name},&#10;&#10;New yarn just came in...&#10;&#10;https://discount-yarn.com/shop.php?sale=1"><?= e($draft['body']) ?></textarea>
   </label>
-  <p class="muted-note">Plain text. Leave a blank line between paragraphs; web addresses become links. <code>{first_name}</code> becomes each person's first name, or "there". On a line of its own, <code>[product:paladin]</code> adds a product card with its photo, current price and a Shop now button (use the part after <code>slug=</code> in the product link), <code>[image:https://...|description]</code> adds an uploaded image, <code>[banner:Last call]</code> adds a bright headline, and <code>[lastchance]</code> adds four yarns with how many skeins are left and tappable colorways (it picks the four in-stock yarns with the fewest left; to choose, write <code>[lastchance:paladin, cardiff-cashmere-classic-tweed]</code>). The store name, your postal address and an unsubscribe link are added automatically.</p>
+  <p class="muted-note">Plain text. Leave a blank line between paragraphs; web addresses become links. <code>{first_name}</code> becomes each person's first name, or "there". On a line of its own, <code>[product:paladin]</code> adds a product card with its photo, current price and a Shop now button (use the part after <code>slug=</code> in the product link), <code>[image:https://...|description]</code> adds an uploaded image, <code>[banner:Last call]</code> adds a bright headline, and <code>[lastchance]</code> adds four yarns with how many skeins are left and tappable colorways (it picks the four in-stock yarns with the fewest left; to choose, write <code>[lastchance:paladin, cardiff-cashmere-classic-tweed]</code>). The store name, your postal address and an unsubscribe link are added automatically, and every link to the store gets UTM tags (newsletter / email / the date and subject) so Visitors shows who came from each email. Tests are tagged test-email so they don't count.</p>
   <div class="actions">
     <button type="submit" name="action" value="preview">Preview</button>
   </div>

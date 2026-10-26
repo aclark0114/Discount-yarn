@@ -41,9 +41,15 @@ try {
         $sources[] = ['src' => '', 'v' => $visitors - $referred];
         usort($sources, fn($a, $b) => (int)$b['v'] <=> (int)$a['v']);
     }
-    $campaigns = $all("SELECT utm_source, utm_medium, utm_campaign, COUNT(DISTINCT visitor) AS v FROM site_events
-                       WHERE event = 'view' AND utm_source IS NOT NULL AND created_at >= ?
-                       GROUP BY utm_source, utm_medium, utm_campaign ORDER BY v DESC LIMIT 10", [$since]);
+    // What visitors who arrived through a campaign link went on to do the
+    // same day (the visitor id changes daily).
+    $campaigns = $all("SELECT c.utm_source, c.utm_medium, c.utm_campaign, COUNT(DISTINCT c.visitor) AS v,
+                              COUNT(DISTINCT CASE WHEN x.event = 'add_to_cart' THEN x.visitor END) AS adds,
+                              COUNT(DISTINCT CASE WHEN x.event = 'checkout' THEN x.visitor END) AS checkouts
+                       FROM site_events c
+                       LEFT JOIN site_events x ON x.visitor = c.visitor AND x.event IN ('add_to_cart', 'checkout') AND x.created_at >= c.created_at
+                       WHERE c.event = 'view' AND c.utm_source IS NOT NULL AND c.created_at >= ?
+                       GROUP BY c.utm_source, c.utm_medium, c.utm_campaign ORDER BY v DESC LIMIT 10", [$since]);
     $devices   = $all("SELECT device, COUNT(DISTINCT visitor) AS v FROM site_events WHERE event = 'view' AND created_at >= ? GROUP BY device ORDER BY v DESC", [$since]);
     $recent    = $all('SELECT created_at, visitor, event, path, product, value_cents, referrer_host, device FROM site_events ORDER BY id DESC LIMIT 40');
     $orders    = $all("SELECT COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS total FROM orders WHERE status IN ('paid', 'shipped') AND paid_at >= ?", [$since])[0];
@@ -164,9 +170,10 @@ admin_header('Visitors');
       <?php if ($campaigns): ?>
         <h2>Campaigns (UTM)</h2>
         <div class="table-wrap"><table>
+          <thead><tr><th>Campaign</th><th>Visits</th><th>Carts</th><th>Checkouts</th></tr></thead>
           <tbody>
           <?php foreach ($campaigns as $r): ?>
-            <tr><td><?= e(implode(' / ', array_filter([$r['utm_source'], $r['utm_medium'], $r['utm_campaign']]))) ?></td><td><?= (int)$r['v'] ?></td></tr>
+            <tr><td class="campaign"><?= e($r['utm_campaign'] ?? '(none)') ?><small><?= e(implode(' / ', array_filter([$r['utm_source'], $r['utm_medium']]))) ?></small></td><td><?= (int)$r['v'] ?></td><td><?= (int)$r['adds'] ?></td><td><?= (int)$r['checkouts'] ?></td></tr>
           <?php endforeach; ?>
           </tbody>
         </table></div>
