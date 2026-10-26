@@ -64,9 +64,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'invite') {
+    if ($action === 'add_confirmed' && (empty($_POST['consent']) || trim((string)($_POST['consent_note'] ?? '')) === '')) {
+        flash('To add people without a confirmation email, tick the permission box and say how they agreed.');
+        redirect('/admin/email.php');
+    }
+
+    if ($action === 'invite' || $action === 'add_confirmed') {
         $lines = preg_split('/[\r\n]+/', (string)($_POST['invites'] ?? ''));
-        $counts = ['sent' => 0, 'already' => 0, 'failed' => 0, 'invalid' => 0];
+        $counts = ['sent' => 0, 'added' => 0, 'confirmed' => 0, 'already' => 0, 'unsubscribed' => 0, 'failed' => 0, 'invalid' => 0];
+        $note = trim((string)($_POST['consent_note'] ?? ''));
         foreach (array_slice(array_filter(array_map('trim', $lines)), 0, 50) as $line) {
             // "Name, email" or just "email"
             $parts = array_map('trim', str_getcsv($line));
@@ -83,9 +89,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $counts['invalid']++;
                 continue;
             }
-            $counts[subscriber_request($email, $name, 'invite')]++;
+            $counts[$action === 'invite' ? subscriber_request($email, $name, 'invite') : subscriber_add_confirmed($email, $name, $note)]++;
         }
-        flash(sprintf('Invites: %d sent, %d already on the list, %d failed, %d lines without an email.', $counts['sent'], $counts['already'], $counts['failed'], $counts['invalid']));
+        flash($action === 'invite'
+            ? sprintf('Invites: %d sent, %d already on the list, %d failed, %d lines without an email.', $counts['sent'], $counts['already'], $counts['failed'], $counts['invalid'])
+            : sprintf('Added as confirmed: %d new, %d were waiting to confirm, %d already on the list, %d skipped because they unsubscribed, %d lines without an email.',
+                $counts['added'], $counts['confirmed'], $counts['already'], $counts['unsubscribed'], $counts['invalid']));
         redirect('/admin/email.php');
     }
 
@@ -167,14 +176,18 @@ admin_header('Email');
 </table></div>
 <?php endif; ?>
 
-<h2>Invite people</h2>
+<h2>Add people</h2>
 <form class="edit" method="post" action="/admin/email.php">
   <?= csrf_field() ?>
   <label>One person per line: "First name, email" or just the email (up to 50 at a time)
     <textarea name="invites" rows="5" placeholder="Jen, jen@example.com"></textarea>
   </label>
-  <p class="muted-note">Each person gets one email asking them to confirm. They only receive blasts after they click it, and hearing nothing means they're never emailed again. Only invite people who'd expect to hear from you, such as customers who agreed to email from Stars Hollow, with Stars Hollow's OK.</p>
+  <p class="muted-note"><strong>Send invites:</strong> each person gets one email asking them to confirm, and only gets blasts after they click it.</p>
   <div class="actions"><button type="submit" name="action" value="invite">Send invites</button></div>
+  <p class="muted-note"><strong>Add as confirmed:</strong> no confirmation email; they get the next blast. Use this only for people who already agreed to email from you. Every blast has an unsubscribe link, and anyone who unsubscribed is never added back.</p>
+  <label>How did they agree? (saved with each person) <input name="consent_note" maxlength="255" placeholder="For example: signed up at the shop counter, 26 Oct 2026"></label>
+  <label class="check"><input type="checkbox" name="consent" value="1"> These people gave permission to receive email from Discount Yarn</label>
+  <div class="actions"><button type="submit" name="action" value="add_confirmed">Add as confirmed</button></div>
 </form>
 
 <h2>Latest sign-ups</h2>
@@ -185,7 +198,7 @@ admin_header('Email');
   <?php foreach ($recent as $s): ?>
     <tr>
       <td><?= e($s['email']) ?></td><td><?= e($s['first_name']) ?></td>
-      <td><?= e(ucfirst($s['status'])) ?></td><td><?= e($s['source'] === 'invite' ? 'Invited' : 'Signed up') ?></td>
+      <td><?= e(ucfirst($s['status'])) ?></td><td<?= !empty($s['consent_note']) ? ' title="' . e($s['consent_note']) . '"' : '' ?>><?= e(['invite' => 'Invited', 'manual' => 'Added by hand'][$s['source']] ?? 'Signed up') ?></td>
       <td class="nowrap"><?= e(date('M j, Y', strtotime($s['confirmed_at'] ?? $s['created_at']))) ?></td>
       <td><?php if ($s['status'] !== 'unsubscribed'): ?>
         <form method="post" action="/admin/email.php"><?= csrf_field() ?><input type="hidden" name="action" value="remove"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><button type="submit" class="danger">Remove</button></form>

@@ -16,7 +16,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `track.php`, `includes/activity.php`, `admin/visitors.php` | First-party visitor activity and the admin Visitors page |
 | `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
 | `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
-| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql`, `schema_v7_email.sql` | Database tables, run once each in phpMyAdmin, in order |
+| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql`, `schema_v7_email.sql`, `schema_v8_consent.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `admin/pricing.php`, `includes/pricing.php` | Discount tiers for Shopify yarn |
 | `includes/catalog.php` | Grouped catalog: one card and one page per product, with a colorway picker |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
@@ -95,10 +95,11 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - **Preview and checks:** Preview shows the email before you test or send. A misspelled product or a non-https image stops the test or send with a message.
   - **Sending:** send yourself a test, then tick the confirm box and send to everyone confirmed. Blasts go through Postmark's **broadcast** stream in batches of 500. Past blasts are listed with delivered and failed counts.
   - **Invites:** each invited person gets one confirmation email and only receives blasts if they click it. Only invite people who'd expect to hear from you.
+  - **Add as confirmed:** adds people with no confirmation email, for people who already agreed to your email (signed up in person, by phone, on a paper form). You must tick the permission box and say how they agreed; that note is saved with each person and shows when you hover "Added by hand". People who unsubscribed are never added back.
 - **Every blast includes** the store name, the `mailing_address` from the config (required by US law; sending is blocked until it's set) and an unsubscribe link. It also carries the one-click unsubscribe headers that Gmail and Yahoo require.
 - **Unsubscribing:** the unsubscribe page asks for a click, so email security scanners that open links can't unsubscribe people by accident. Mail apps' one-click unsubscribe works directly.
 - **Setup:**
-  1. Run `schema_v7_email.sql` in phpMyAdmin.
+  1. Run `schema_v7_email.sql`, then `schema_v8_consent.sql`, in phpMyAdmin.
   2. In Postmark, add a **Broadcast** message stream to the store's server, named `broadcast` or whatever is in `postmark.broadcast_stream`.
   3. Set `mailing_address` in the config.
 

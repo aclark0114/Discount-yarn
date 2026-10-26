@@ -60,6 +60,33 @@ function subscriber_request(string $email, string $firstName, string $source): s
     return send_confirmation($email, $firstName, $token, $source) ? 'sent' : 'failed';
 }
 
+// Adds someone straight to the list as confirmed, without a confirmation
+// email, for people who agreed some other way (in person, on a form,
+// through another list). The note records how. Someone who unsubscribed is
+// never added back. Returns 'added', 'confirmed' (was pending), 'already'
+// or 'unsubscribed'.
+function subscriber_add_confirmed(string $email, string $firstName, string $note): string
+{
+    $email = strtolower(trim($email));
+    $now = date('Y-m-d H:i:s');
+    $note = mb_substr(trim($note), 0, 255);
+    $existing = subscriber_by('email', $email);
+    if ($existing) {
+        if ($existing['status'] === 'unsubscribed') {
+            return 'unsubscribed';
+        }
+        if ($existing['status'] === 'confirmed') {
+            return 'already';
+        }
+        db()->prepare("UPDATE subscribers SET status = 'confirmed', confirmed_at = ?, consent_note = ?, first_name = CASE WHEN ? <> '' THEN ? ELSE first_name END WHERE id = ?")
+            ->execute([$now, $note, $firstName, $firstName, (int)$existing['id']]);
+        return 'confirmed';
+    }
+    db()->prepare("INSERT INTO subscribers (email, first_name, status, token, source, created_at, confirmed_at, consent_note) VALUES (?, ?, 'confirmed', ?, 'manual', ?, ?, ?)")
+        ->execute([$email, mb_substr($firstName, 0, 100), bin2hex(random_bytes(16)), $now, $now, $note]);
+    return 'added';
+}
+
 function send_confirmation(string $email, string $firstName, string $token, string $source): bool
 {
     $store = (string)config('store_name');
