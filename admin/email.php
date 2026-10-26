@@ -1,20 +1,38 @@
 <?php
 require __DIR__ . '/_auth.php';
 require __DIR__ . '/../includes/subscribers.php';
+require __DIR__ . '/../includes/products.php';
 
 $pdo = db();
 $draft = $_SESSION['blast_draft'] ?? ['subject' => '', 'body' => ''];
+$preview = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = (string)($_POST['action'] ?? '');
 
-    if (in_array($action, ['test', 'send'], true)) {
+    if ($action === 'image') {
+        try {
+            $name = store_upload($_FILES['image'] ?? []);
+            flash($name ? 'Uploaded. Put this line in your message on its own: [image:' . url('uploads/' . $name) . '|Describe the image]' : 'Choose an image first.');
+        } catch (InvalidArgumentException | RuntimeException $ex) {
+            flash($ex->getMessage());
+        }
+        redirect('/admin/email.php');
+    }
+
+    if (in_array($action, ['preview', 'test', 'send'], true)) {
         $subject = trim(mb_substr((string)($_POST['subject'] ?? ''), 0, 200));
         $body = trim((string)($_POST['body'] ?? ''));
-        $_SESSION['blast_draft'] = ['subject' => $subject, 'body' => $body];
+        $_SESSION['blast_draft'] = $draft = ['subject' => $subject, 'body' => $body];
+        $problems = blast_problems($body);
         if ($subject === '' || $body === '') {
             flash('Write a subject and a message first.');
+        } elseif ($problems) {
+            flash(implode(' ', $problems));
+        } elseif ($action === 'preview') {
+            $m = blast_message($subject, $body, ['email' => 'preview@example.com', 'first_name' => 'Jane', 'token' => str_repeat('0', 32)]);
+            $preview = ['html' => $m['HtmlBody'], 'text' => $m['TextBody'], 'subject' => $subject];
         } elseif (($blocker = blast_blocker()) !== '') {
             flash($blocker);
         } elseif ($action === 'test') {
@@ -41,7 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Sent to ' . $sent . ' of ' . count($subs) . ' subscribers.' . ($failed ? ' ' . $failed . ' failed: ' . $err : ''));
             }
         }
-        redirect('/admin/email.php');
+        if ($preview === null) {
+            redirect('/admin/email.php');
+        }
     }
 
     if ($action === 'invite') {
@@ -103,14 +123,23 @@ admin_header('Email');
 <?php if ($blocker): ?><p class="error"><?= e($blocker) ?></p><?php endif; ?>
 
 <h2>Write a blast</h2>
+<form class="edit" method="post" action="/admin/email.php" enctype="multipart/form-data">
+  <?= csrf_field() ?>
+  <label>Image for an email (JPG or PNG, for example a header made in Canva)
+    <input type="file" name="image" accept="image/jpeg,image/png">
+  </label>
+  <div class="actions"><button type="submit" name="action" value="image" formnovalidate>Upload image</button></div>
+</form>
+
 <form class="edit" method="post" action="/admin/email.php">
   <?= csrf_field() ?>
   <label>Subject <input name="subject" maxlength="200" value="<?= e($draft['subject']) ?>" required></label>
   <label>Message
     <textarea name="body" rows="12" required placeholder="Hi {first_name},&#10;&#10;New yarn just came in...&#10;&#10;https://discount-yarn.com/shop.php?sale=1"><?= e($draft['body']) ?></textarea>
   </label>
-  <p class="muted-note">Plain text. Leave a blank line between paragraphs; web addresses become links. <code>{first_name}</code> becomes each person's first name, or "there". The store name, your postal address and an unsubscribe link are added automatically.</p>
+  <p class="muted-note">Plain text. Leave a blank line between paragraphs; web addresses become links. <code>{first_name}</code> becomes each person's first name, or "there". On a line of its own, <code>[product:paladin]</code> adds a product card with its photo, current price and a Shop now button (use the part after <code>slug=</code> in the product link), and <code>[image:https://...|description]</code> adds an uploaded image. The store name, your postal address and an unsubscribe link are added automatically.</p>
   <div class="actions">
+    <button type="submit" name="action" value="preview">Preview</button>
     <button type="submit" name="action" value="test">Send a test to <?= e(config('owner_email')) ?></button>
   </div>
   <div class="actions">
@@ -118,6 +147,12 @@ admin_header('Email');
     <button type="submit" name="action" value="send" class="danger"<?= $confirmed === 0 ? ' disabled' : '' ?>>Send blast</button>
   </div>
 </form>
+
+<?php if ($preview): ?>
+<h2>Preview: <?= e($preview['subject']) ?></h2>
+<iframe class="email-preview" sandbox srcdoc="<?= e($preview['html']) ?>" title="Email preview"></iframe>
+<details><summary>Plain-text version</summary><pre class="email-text"><?= e($preview['text']) ?></pre></details>
+<?php endif; ?>
 
 <?php if ($blasts): ?>
 <h2>Sent</h2>

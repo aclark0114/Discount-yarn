@@ -41,6 +41,8 @@ tr.inactive td { opacity: .55; }
 .bar small { position: absolute; bottom: -18px; font-size: .7rem; color: var(--muted); }
 .muted-note { color: var(--muted); font-size: .85rem; }
 .nowrap { white-space: nowrap; }
+.email-preview { width: 100%; max-width: 680px; height: 900px; border: 1px solid var(--line); border-radius: var(--r); background: #fff; }
+.email-text { white-space: pre-wrap; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; max-width: 680px; }
 @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
 .edit { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; margin-top: 16px; display: grid; gap: 14px; }
 .edit label { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; }

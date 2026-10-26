@@ -96,20 +96,102 @@ function subscriber_unsubscribe(string $token): ?array
     return $s;
 }
 
+// A product card for a blast: the product page's own photo, name, current
+// price (including any discount tier) and a Shop now button. Returns
+// [html, text], or null when the product isn't live.
+function blast_product_card(string $slug): ?array
+{
+    require_once __DIR__ . '/catalog.php';
+    $variants = catalog_group_variants($slug);
+    if (!$variants) {
+        return null;
+    }
+    $p = $variants[0];   // in-stock colorways come first
+    $prices = array_map('effective_price', $variants);
+    $low = min($prices);
+    $high = max($prices);
+    $regular = max(array_map(fn($v) => (int)$v['price_cents'], $variants));
+    $off = max(array_map('percent_off', $variants));
+    $link = url(group_url($slug));
+    $img = product_image($p, 1120);
+    if (!str_starts_with($img, 'http')) {
+        $img = url($img);
+    }
+    $price = ($low !== $high ? 'From ' : '') . money($low);
+    $was = $off > 0 ? money($regular) : '';
+    $inStock = (int)$p['stock'] > 0;
+    $html = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 22px;border:1px solid #e6dccb;border-radius:6px;border-collapse:separate;overflow:hidden">'
+        . '<tr><td style="padding:0"><a href="' . e($link) . '"><img src="' . e($img) . '" alt="' . e($p['name']) . '" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0"></a></td></tr>'
+        . '<tr><td style="padding:16px 18px;font-family:Arial,sans-serif">'
+        . ($p['brand'] !== '' ? '<p style="margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7a6f66">' . e($p['brand']) . '</p>' : '')
+        . '<p style="margin:2px 0 6px;font-family:Georgia,serif;font-size:20px;color:#2f2a26">' . e($p['name']) . '</p>'
+        . '<p style="margin:0 0 14px;font-size:17px">'
+        . ($was !== '' ? '<s style="color:#7a6f66">' . e($was) . '</s> ' : '')
+        . '<strong style="color:' . ($off > 0 ? '#a63d40' : '#2f2a26') . '">' . e($price) . '</strong>'
+        . ($off > 0 ? ' <span style="font-size:13px;color:#a63d40">' . ($low !== $high || $off !== min(array_map('percent_off', $variants)) ? 'up to ' : '') . $off . '% off</span>' : '')
+        . (count($variants) > 1 ? '<br><span style="font-size:13px;color:#7a6f66">' . count($variants) . ' colorways</span>' : '')
+        . '</p>'
+        . '<a href="' . e($link) . '" style="display:inline-block;background:#2f5d50;color:#ffffff;padding:11px 20px;border-radius:6px;text-decoration:none;font-weight:bold">' . ($inStock ? 'Shop now' : 'See it') . '</a>'
+        . '</td></tr></table>';
+    $text = $p['name'] . ($p['brand'] !== '' ? ' by ' . $p['brand'] : '') . ': ' . $price . ($was !== '' ? ' (was ' . $was . ')' : '') . "\n" . $link;
+    return [$html, $text];
+}
+
+// Problems that would make a blast look broken, such as an unknown product.
+function blast_problems(string $body): array
+{
+    $problems = [];
+    if (preg_match_all('/^\[product:([^\]]*)\]$/m', str_replace("\r\n", "\n", $body), $m)) {
+        foreach ($m[1] as $slug) {
+            $slug = trim($slug);
+            if (blast_product_card($slug) === null) {
+                $problems[] = 'No live product with the address "' . $slug . '". Use the part after slug= in the product page link.';
+            }
+        }
+    }
+    if (preg_match_all('/^\[image:([^\]|]*)/m', $body, $m)) {
+        foreach ($m[1] as $src) {
+            if (!preg_match('#^https://\S+$#', trim($src))) {
+                $problems[] = 'Image addresses must start with https:// (' . trim($src) . ').';
+            }
+        }
+    }
+    return $problems;
+}
+
 // Plain text with blank-line paragraphs; URLs become links and {first_name}
-// is filled in. Returns [html, text].
+// is filled in. A paragraph that is just [product:slug] becomes a product
+// card, and [image:https://...|alt text] a full-width image. Returns [html, text].
 function blast_render(string $body, string $firstName): array
 {
     $body = str_replace("\r\n", "\n", trim($body));
     $name = $firstName !== '' ? $firstName : 'there';
-    $text = str_replace('{first_name}', $name, $body);
     $html = '';
+    $text = [];
     foreach (preg_split("/\n{2,}/", $body) as $para) {
-        $p = nl2br(e(str_replace('{first_name}', $name, $para)), false);
+        $para = trim($para);
+        if (preg_match('/^\[product:([^\]]+)\]$/', $para, $m)) {
+            $card = blast_product_card(trim($m[1]));
+            if ($card) {
+                $html .= $card[0];
+                $text[] = $card[1];
+            }
+            continue;
+        }
+        if (preg_match('/^\[image:(https:\/\/[^\]|\s]+)(?:\|([^\]]*))?\]$/', $para, $m)) {
+            $html .= '<p style="margin:0 0 18px"><img src="' . e($m[1]) . '" alt="' . e(trim($m[2] ?? '')) . '" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0;border-radius:6px"></p>';
+            if (trim($m[2] ?? '') !== '') {
+                $text[] = trim($m[2]);
+            }
+            continue;
+        }
+        $para = str_replace('{first_name}', $name, $para);
+        $text[] = $para;
+        $p = nl2br(e($para), false);
         $p = preg_replace('#https?://[^\s<]+[^\s<.,;:!?)\]]#', '<a href="$0" style="color:#2f5d50">$0</a>', $p);
         $html .= '<p style="margin:0 0 14px;line-height:1.55">' . $p . '</p>';
     }
-    return [$html, $text];
+    return [$html, implode("\n\n", $text)];
 }
 
 function blast_message(string $subject, string $body, array $sub): array

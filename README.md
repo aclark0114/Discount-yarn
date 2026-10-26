@@ -90,6 +90,9 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - **Privacy:** the form gives the same answer whether or not an address is already on the list, so it can't be used to check who's subscribed.
 - **Admin > Email** (`/admin/email.php`):
   - **Writing:** plain text, with a blank line between paragraphs. Web addresses become links and `{first_name}` fills in each person's name.
+  - **Product cards:** a line with just `[product:slug]` (the part after `slug=` in a product link) becomes a card with that product's photo, current price including any discount tier, and a Shop now button, filled in at send time.
+  - **Images:** upload an image on the same page, then put the `[image:https://...|description]` line it gives you on its own line. The description shows in the plain-text version and to screen readers.
+  - **Preview and checks:** Preview shows the email before you test or send. A misspelled product or a non-https image stops the test or send with a message.
   - **Sending:** send yourself a test, then tick the confirm box and send to everyone confirmed. Blasts go through Postmark's **broadcast** stream in batches of 500. Past blasts are listed with delivered and failed counts.
   - **Invites:** each invited person gets one confirmation email and only receives blasts if they click it. Only invite people who'd expect to hear from you.
 - **Every blast includes** the store name, the `mailing_address` from the config (required by US law; sending is blocked until it's set) and an unsubscribe link. It also carries the one-click unsubscribe headers that Gmail and Yahoo require.
