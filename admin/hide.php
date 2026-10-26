@@ -15,7 +15,8 @@ if (!products_have_hide_columns()) {
 
 $phrase = trim(mb_substr((string)($_REQUEST['phrase'] ?? HIDE_DEFAULT_PHRASE), 0, 80));
 $showAll = !empty($_REQUEST['all']);
-$back = '/admin/hide.php?' . http_build_query(array_filter(['phrase' => $phrase, 'all' => $showAll ? 1 : null]));
+$onlyHidden = !$showAll && !empty($_REQUEST['hidden']);
+$back = '/admin/hide.php?' . http_build_query(array_filter(['phrase' => $phrase, 'all' => $showAll ? 1 : null, 'hidden' => $onlyHidden ? 1 : null]));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -91,8 +92,12 @@ foreach (db()->query('SELECT * FROM products ORDER BY name, colorway, id') as $p
     unset($g);
 }
 $matches = array_filter($groups, fn($g) => $g['hits']);
-$list = $showAll ? $groups : $matches;
-$hiddenCount = count(array_filter($groups, fn($g) => $g['hidden'] > 0));
+$hiddenGroups = array_filter($groups, fn($g) => $g['hidden'] > 0);
+$hiddenCount = count($hiddenGroups);
+// By default list the products that mention the phrase plus everything
+// already hidden (hidden from a pasted list or for a photo, the text may not
+// mention it), so the owner can see every hidden product in one place.
+$list = $showAll ? $groups : ($onlyHidden ? $hiddenGroups : array_filter($groups, fn($g) => $g['hits'] || $g['hidden'] > 0));
 
 $highlight = function (string $snip) use ($re): string {
     if (!$re || !preg_match_all($re, $snip, $m, PREG_OFFSET_CAPTURE)) {
@@ -113,11 +118,12 @@ admin_header('Hide products');
 <p>Find products that mention a phrase anywhere in their name, description, tags, SEO text or photo descriptions, then take them out of the store or put them back. A hidden product stays hidden through Shopify syncs. To check the pictures themselves, use <a href="/admin/photos.php">Review photos</a>.</p>
 <form class="search" method="get" action="/admin/hide.php">
   <input type="search" name="phrase" value="<?= e($phrase) ?>" placeholder="<?= e(HIDE_DEFAULT_PHRASE) ?>" aria-label="Phrase">
+  <label class="check"><input type="checkbox" name="hidden" value="1"<?= $onlyHidden ? ' checked' : '' ?>> Only hidden products</label>
   <label class="check"><input type="checkbox" name="all" value="1"<?= $showAll ? ' checked' : '' ?>> List every product</label>
   <button type="submit">Search</button>
 </form>
-<p><strong><?= count($matches) ?></strong> of <?= count($groups) ?> products mention "<?= e($phrase) ?>". <?= $hiddenCount ?> <?= $hiddenCount === 1 ? 'product is' : 'products are' ?> hidden by you right now.
-  <?php if (!$showAll && $hiddenCount > count(array_filter($matches, fn($g) => $g['hidden'] > 0))): ?><a href="/admin/hide.php?all=1">See them all</a><?php endif; ?></p>
+<p><strong><?= count($matches) ?></strong> of <?= count($groups) ?> products mention "<?= e($phrase) ?>". <?= $hiddenCount ?> <?= $hiddenCount === 1 ? 'product is' : 'products are' ?> hidden by you right now<?= !$showAll && !$onlyHidden && $hiddenCount ? ' and listed below' : '' ?>.
+  <?php if ($hiddenCount && !$onlyHidden): ?><a href="/admin/hide.php?<?= e(http_build_query(['phrase' => $phrase, 'hidden' => 1])) ?>">Show only hidden</a><?php endif; ?></p>
 
 <details class="hide-list"<?= isset($_GET['paste']) ? ' open' : '' ?>>
   <summary>Hide a list of products</summary>
@@ -149,7 +155,7 @@ admin_header('Hide products');
         <td class="pick"><input type="checkbox" name="groups[]" value="<?= e($g['slug']) ?>" aria-label="Select <?= e($p['name']) ?>"></td>
         <td class="thumb"><img src="<?= e(product_image($p, 100)) ?>" alt="" width="44" height="44" loading="lazy"></td>
         <td><a href="/admin/product_edit.php?id=<?= (int)$p['id'] ?>"><?= e($p['name']) ?></a><br><small><?= e(implode(' · ', array_filter([$p['brand'], $g['colorways'] . ' ' . ($g['colorways'] === 1 ? 'colorway' : 'colorways'), $g['stock'] . ' in stock']))) ?></small></td>
-        <td class="hits" data-label="Where it says it"><?php foreach ($g['hits'] as $label => $snip): ?><div><strong><?= e($label) ?>:</strong> <?= $highlight($snip) ?></div><?php endforeach; ?><?= $g['hits'] ? '' : '<span class="muted-note">Not mentioned</span>' ?></td>
+        <td class="hits" data-label="Where it says it"><?php foreach ($g['hits'] as $label => $snip): ?><div><strong><?= e($label) ?>:</strong> <?= $highlight($snip) ?></div><?php endforeach; ?><?= $g['hits'] ? '' : '<span class="muted-note">Not mentioned in the text</span>' ?></td>
         <td class="status"><span><?= $hidden ? '<strong>Hidden by you</strong>' : ($g['live'] ? 'Showing' : 'Not live') ?></span>
           <?php if ($hidden): ?><button type="submit" name="action" value="show:<?= e($g['slug']) ?>">Show</button><?php else: ?><button type="submit" name="action" value="hide:<?= e($g['slug']) ?>" class="danger">Hide</button><?php endif; ?></td>
       </tr>
