@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '11';
+const ASSET_VERSION = '12';
 
 // Yarn weights that have live yarn, in the usual thin-to-thick order.
 function nav_weights(): array
@@ -64,6 +64,9 @@ function page_header(string $title, string $description = '', string $active = '
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<?php if (maintenance_state() !== null && !empty($_SESSION['admin'])): ?>
+<div class="admin-preview">Under construction: shoppers see the back-soon page. You see the store because you're logged in. <a href="/admin/site.php">Store status</a></div>
+<?php endif; ?>
 <div class="announce">Free shipping on orders over <?= money((int)config('shipping.free_over_cents')) ?></div>
 <header class="site-header">
   <div class="wrap header-row">

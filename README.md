@@ -106,6 +106,14 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   2. In Postmark, add a **Broadcast** message stream to the store's server, named `broadcast` or whatever is in `postmark.broadcast_stream`.
   3. Set `mailing_address` in the config.
 
+## Under construction
+
+Admin > **Store status** closes the store to shoppers while you make changes, and opens it again. No deploy is needed either way.
+- **Shoppers** see a "We'll be back soon" page with your message (optional), an email sign-up box and the support email. It answers with a 503 and Retry-After, which search engines treat as temporary.
+- **You**, while logged into admin, see the real store with a red reminder bar, so you can check changes. To see what shoppers see, use a private window.
+- **Still working:** the Stripe webhook, the order success page, sign-up, confirm and unsubscribe links, the Shopify connection and cron jobs.
+- The switch is a file, `discount-yarn-maintenance.json`, saved next to the config (outside public_html), so deploys don't change it. If admin can't be reached, `'maintenance' => true` in the config closes the store too.
+
 ## Logo and favicon
 
 The header shows `assets/logo.png` and the browser tab shows `assets/favicon-32.png` and `assets/apple-touch-icon.png` when those files exist. If they're missing, the store name is shown as text and the old SVG favicon is used. To change them, replace the files in the repo, or upload them to the same paths in cPanel File Manager:

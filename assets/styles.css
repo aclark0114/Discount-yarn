@@ -109,6 +109,8 @@ p { margin: 0 0 1em; }
 .btn-block { display: block; width: 100%; text-align: center; }
 .link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font: inherit; font-size: .875rem; padding: 0; }
 
+.admin-preview { background: var(--berry); color: #fff; text-align: center; font-size: 14px; padding: 8px 16px; }
+.admin-preview a { color: #fff; font-weight: 700; }
 .notice { background: var(--oat); border-left: 3px solid var(--mustard); padding: 10px 14px; border-radius: var(--r); margin: 16px 0; }
 .empty { padding: 32px 0; color: var(--muted); }
 

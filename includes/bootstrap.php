@@ -150,3 +150,6 @@ function slugify(string $text): string
 }
 
 const YARN_WEIGHTS = ['Lace', 'Fingering', 'Sport', 'DK', 'Worsted', 'Aran', 'Bulky', 'Super Bulky'];
+
+require __DIR__ . '/maintenance.php';
+maintenance_gate();

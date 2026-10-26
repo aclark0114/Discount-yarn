@@ -45,6 +45,7 @@ function admin_header(string $title): void
     <a href="/admin/pricing.php">Pricing</a>
     <a href="/admin/shopify.php">Shopify</a>
     <a href="/admin/stripe.php">Stripe</a>
+    <a href="/admin/site.php">Store status</a>
     <a href="/" target="_blank" rel="noopener">View store</a>
     <a href="/admin/logout.php">Log out</a>
   </nav>
@@ -53,6 +54,9 @@ function admin_header(string $title): void
 <?php
     if (!shopify_has_admin_token() && basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'shopify.php') {
         echo '<p class="error">Shopify Admin API not connected. <a href="/shopify/install.php">Connect to Shopify</a></p>';
+    }
+    if (maintenance_state() !== null && basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'site.php') {
+        echo '<p class="error">The store is under construction: shoppers see the back-soon page. <a href="/admin/site.php">Store status</a></p>';
     }
     $msg = flash();
     if ($msg) {

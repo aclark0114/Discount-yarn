@@ -39,6 +39,10 @@ return [
     // Postal address printed in every email blast (required by US law, CAN-SPAM).
     'mailing_address' => '',
 
+    // Under construction: normally switched in admin > Store status. Set to
+    // true here only if admin can't be reached.
+    // 'maintenance' => true,
+
     // MySQL (create the database and user in cPanel > MySQL Databases)
     'db' => [
         'dsn'  => 'mysql:host=localhost;dbname=CHANGE_ME;charset=utf8mb4',
