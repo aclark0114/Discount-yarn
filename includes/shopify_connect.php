@@ -16,7 +16,7 @@ function shopify_connect_page(string $title, string $html, int $status = 200): v
     header('X-Robots-Tag: noindex, nofollow');
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<meta name="robots" content="noindex, nofollow"><title>' . e($title) . ' | ' . e(config('store_name')) . '</title>'
-        . '<link rel="stylesheet" href="/assets/admin.css?v=9"></head><body class="login-page"><div class="login">'
+        . '<link rel="stylesheet" href="/assets/admin.css?v=10"></head><body class="login-page"><div class="login">'
         . '<h1>' . e($title) . '</h1>' . $html . '</div></body></html>';
     exit;
 }

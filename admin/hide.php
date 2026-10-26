@@ -86,7 +86,7 @@ $highlight = function (string $snip) use ($re): string {
 admin_header('Hide products');
 ?>
 <h1>Hide products</h1>
-<p>Find products that mention a phrase anywhere in their name, description, tags, SEO text or photo descriptions, then take them out of the store or put them back. A hidden product stays hidden through Shopify syncs.</p>
+<p>Find products that mention a phrase anywhere in their name, description, tags, SEO text or photo descriptions, then take them out of the store or put them back. A hidden product stays hidden through Shopify syncs. To check the pictures themselves, use <a href="/admin/photos.php">Review photos</a>.</p>
 <form class="search" method="get" action="/admin/hide.php">
   <input type="search" name="phrase" value="<?= e($phrase) ?>" placeholder="<?= e(HIDE_DEFAULT_PHRASE) ?>" aria-label="Phrase">
   <label class="check"><input type="checkbox" name="all" value="1"<?= $showAll ? ' checked' : '' ?>> List every product</label>

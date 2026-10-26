@@ -112,6 +112,7 @@ Admin > **Hide products** searches every product for a phrase ("Stars Hollow" by
 - **Hide or Show** one product with its button, or tick several and use Hide selected or Show selected. It works on the whole product, every colorway.
 - **Hidden stays hidden:** the Shopify sync keeps hidden products out of the store until you click Show. Products show "Hidden by you" on the Products page. Tick "List every product" to see and hide anything, matching or not.
 - **Showing a Shopify product** only puts it back live if the last sync still found it in Shopify.
+- **Photos:** Admin > Hide products > **Review photos** shows every photo of every product (30 products a page), with a Hide or Show button on each, for things the text search can't see, such as a logo or shop bag in the picture. Click a photo to open it full size.
 - **Setup:** run `schema_v9_hide.sql` in phpMyAdmin, deploy, then run a Shopify sync (admin > Shopify, or wait for the cron) so tags and SEO text are saved. Until that sync, only names and descriptions are searched.
 
 ## Admin password

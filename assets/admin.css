@@ -81,3 +81,13 @@ code { background: #efe5d3; padding: 1px 5px; border-radius: 4px; }
 }
 .hide-table td.status { white-space: nowrap; }
 .hide-table td.status button { margin-left: 12px; }
+.photo-review { display: grid; gap: 14px; }
+.photo-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.photo-card.is-hidden { border-color: var(--red); }
+.photo-card.is-hidden .photo-status { color: var(--red); font-weight: 600; }
+.photo-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 10px; }
+.photo-head small { display: block; color: var(--muted); }
+.photo-head form { display: flex; align-items: center; gap: 12px; }
+.photo-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-strip img { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: var(--r); border: 1px solid var(--line); background: var(--bg); }
+@media (max-width: 640px) { .photo-strip img { width: 96px; height: 96px; } }
