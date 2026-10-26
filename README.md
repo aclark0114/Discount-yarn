@@ -91,6 +91,8 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
 - **Admin > Email** (`/admin/email.php`):
   - **Writing:** plain text, with a blank line between paragraphs. Web addresses become links and `{first_name}` fills in each person's name.
   - **Product cards:** a line with just `[product:slug]` (the part after `slug=` in a product link) becomes a card with that product's photo, current price including any discount tier, and a Shop now button, filled in at send time.
+  - **Bright blocks:** `[banner:Last call]` is a bold headline strip. `[lastchance]` is a grid of four yarns showing how many skeins are left, with colorway photos that each open that colorway. On its own it picks the four in-stock yarns with the fewest skeins left, checked at send time; `[lastchance:slug, slug, slug, slug]` picks them yourself.
+  - **Tests:** a test goes to any one address (your order email by default), isn't added to the list, and has a placeholder unsubscribe link.
   - **Images:** upload an image on the same page, then put the `[image:https://...|description]` line it gives you on its own line. The description shows in the plain-text version and to screen readers.
   - **Preview and checks:** Preview shows the email before you test or send. A misspelled product or a non-https image stops the test or send with a message.
   - **Sending:** send yourself a test, then tick the confirm box and send to everyone confirmed. Blasts go through Postmark's **broadcast** stream in batches of 500. Past blasts are listed with delivered and failed counts.

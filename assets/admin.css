@@ -51,6 +51,8 @@ tr.inactive td { opacity: .55; }
 .cols { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .image-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.test-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 12px; }
+.test-row label { flex: 1 1 200px; margin: 0; }
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 16px; }
 .tabs a { padding: 6px 12px; border-radius: var(--r); text-decoration: none; background: var(--paper); border: 1px solid var(--line); }
 .tabs a[aria-current="page"] { background: var(--green); color: #fff; border-color: var(--green); }

@@ -164,6 +164,73 @@ function blast_product_card(string $slug): ?array
     return [$html, $text];
 }
 
+// The yarns for a [lastchance] block: the named product addresses, or with
+// none named, the four in-stock yarns with the fewest skeins left. Returns [slug => variants] for the ones that are live.
+function blast_lastchance_groups(string $slugs): array
+{
+    require_once __DIR__ . '/catalog.php';
+    $slugs = array_values(array_filter(array_map('trim', explode(',', $slugs))));
+    if (!$slugs) {
+        $slugs = db()->query("SELECT group_slug FROM products WHERE is_active = 1 AND category = 'yarn' AND group_slug <> ''
+            GROUP BY group_slug HAVING SUM(CASE WHEN stock > 0 THEN stock ELSE 0 END) > 0
+            ORDER BY SUM(CASE WHEN stock > 0 THEN stock ELSE 0 END), group_slug LIMIT 4")->fetchAll(PDO::FETCH_COLUMN);
+    }
+    $groups = [];
+    foreach ($slugs as $slug) {
+        $variants = catalog_group_variants($slug);
+        if ($variants) {
+            $groups[$slug] = $variants;
+        }
+    }
+    return $groups;
+}
+
+// A bright two-by-two grid of yarns with how many skeins are left and a row
+// of colorway photos that each open that colorway. The cards sit side by
+// side on wide screens and stack on phones without needing CSS media queries.
+function blast_lastchance(string $slugs): array
+{
+    $cards = '';
+    $text = [];
+    foreach (blast_lastchance_groups($slugs) as $slug => $variants) {
+        $p = $variants[0];
+        $inStock = array_values(array_filter($variants, fn($v) => (int)$v['stock'] > 0));
+        $left = array_sum(array_map(fn($v) => (int)$v['stock'], $inStock));
+        $low = min(array_map('effective_price', $variants));
+        $regular = max(array_map(fn($v) => (int)$v['price_cents'], $variants));
+        $off = max(array_map('percent_off', $variants));
+        $link = url(group_url($slug));
+        $img = product_image($p, 560);
+        $img = str_starts_with($img, 'http') ? $img : url($img);
+        $badge = $left === 0 ? 'Sold out' : ($left === 1 ? 'Last skein' : 'Only ' . $left . ' left');
+        $swatches = '';
+        foreach (array_slice($inStock, 0, 5) as $v) {
+            $src = product_image($v, 120);
+            $src = str_starts_with($src, 'http') ? $src : url($src);
+            $swatches .= '<a href="' . e(url(group_url($slug, (int)$v['id']))) . '" style="display:inline-block;margin:0 4px 4px 0"><img src="' . e($src) . '" alt="' . e($v['colorway'] !== '' ? $v['colorway'] : $v['name']) . ', ' . (int)$v['stock'] . ' left" title="' . e($v['colorway']) . '" width="38" height="38" style="display:block;width:38px;height:38px;border-radius:50%;border:2px solid #ffffff;box-shadow:0 0 0 1px #e6dccb;object-fit:cover"></a>';
+        }
+        $more = count($inStock) - 5;
+        $cards .= '<div style="display:inline-block;vertical-align:top;width:100%;max-width:252px;margin:0 4px 14px;text-align:left">'
+            . '<div style="background:#ffffff;border-radius:10px;overflow:hidden;border:2px solid #f2c94c">'
+            . '<div style="background:' . ($left > 0 ? '#e8504f' : '#7a6f66') . ';color:#ffffff;font:bold 13px/1 Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:9px 12px">' . e($badge) . ($off > 0 ? '<span style="float:right;background:#f2c94c;color:#2f2a26;border-radius:10px;padding:2px 8px;margin-top:-2px">' . $off . '% off</span>' : '') . '</div>'
+            . '<a href="' . e($link) . '"><img src="' . e($img) . '" alt="' . e($p['name']) . '" width="252" style="display:block;width:100%;height:auto;border:0"></a>'
+            . '<div style="padding:12px 14px 16px;font-family:Arial,sans-serif">'
+            . ($p['brand'] !== '' ? '<p style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7a6f66">' . e($p['brand']) . '</p>' : '')
+            . '<p style="margin:2px 0 6px;font-family:Georgia,serif;font-size:18px;line-height:1.25;color:#2f2a26">' . e($p['name']) . '</p>'
+            . '<p style="margin:0 0 10px;font-size:16px">' . ($off > 0 ? '<s style="color:#7a6f66">' . money($regular) . '</s> ' : '') . '<strong style="color:#c0392b">' . money($low) . '</strong></p>'
+            . ($swatches !== '' ? '<p style="margin:0 0 4px;font-size:12px;color:#7a6f66">Tap a color:</p><div style="margin:0 0 10px">' . $swatches . ($more > 0 ? '<a href="' . e($link) . '" style="font-size:12px;color:#2f5d50;vertical-align:top;line-height:40px">+' . $more . ' more</a>' : '') . '</div>' : '')
+            . '<a href="' . e($link) . '" style="display:block;text-align:center;background:#2f5d50;color:#ffffff;padding:11px 0;border-radius:6px;text-decoration:none;font-weight:bold">' . ($left > 0 ? 'Grab it before it\'s gone' : 'See it') . '</a>'
+            . '</div></div></div>';
+        $text[] = $p['name'] . ($p['brand'] !== '' ? ' by ' . $p['brand'] : '') . ': ' . money($low) . ($off > 0 ? ' (was ' . money($regular) . ')' : '') . ', ' . strtolower($badge) . "\n" . $link;
+    }
+    if ($cards === '') {
+        return ['', ''];
+    }
+    $html = '<div style="margin:6px -8px 18px;padding:18px 4px 4px;background:#fff4d6;border-radius:10px;text-align:center">' . $cards
+        . '<p style="margin:0 0 16px"><a href="' . e(url('shop.php?sale=1')) . '" style="display:inline-block;background:#e8504f;color:#ffffff;padding:12px 22px;border-radius:24px;text-decoration:none;font:bold 15px Arial,sans-serif">See everything on sale</a></p></div>';
+    return [$html, implode("\n\n", $text) . "\n\nEverything on sale: " . url('shop.php?sale=1')];
+}
+
 // Problems that would make a blast look broken, such as an unknown product.
 function blast_problems(string $body): array
 {
@@ -173,6 +240,18 @@ function blast_problems(string $body): array
             $slug = trim($slug);
             if (blast_product_card($slug) === null) {
                 $problems[] = 'No live product with the address "' . $slug . '". Use the part after slug= in the product page link.';
+            }
+        }
+    }
+    if (preg_match_all('/^\[lastchance(?::([^\]]*))?\]$/m', str_replace("\r\n", "\n", $body), $m)) {
+        foreach ($m[1] as $list) {
+            $named = array_values(array_filter(array_map('trim', explode(',', $list))));
+            $found = array_keys(blast_lastchance_groups($list));
+            foreach (array_diff($named, $found) as $slug) {
+                $problems[] = 'No live product with the address "' . $slug . '". Use the part after slug= in the product page link.';
+            }
+            if (!$named && !$found) {
+                $problems[] = 'There is no yarn in stock for the [lastchance] block.';
             }
         }
     }
@@ -188,7 +267,9 @@ function blast_problems(string $body): array
 
 // Plain text with blank-line paragraphs; URLs become links and {first_name}
 // is filled in. A paragraph that is just [product:slug] becomes a product
-// card, and [image:https://...|alt text] a full-width image. Returns [html, text].
+// card, [image:https://...|alt text] a full-width image, [banner:Words] a
+// bright headline strip and [lastchance] (or [lastchance:slug, slug, ...]) a
+// grid of yarns with how much is left. Returns [html, text].
 function blast_render(string $body, string $firstName): array
 {
     $body = str_replace("\r\n", "\n", trim($body));
@@ -203,6 +284,19 @@ function blast_render(string $body, string $firstName): array
                 $html .= $card[0];
                 $text[] = $card[1];
             }
+            continue;
+        }
+        if (preg_match('/^\[lastchance(?::([^\]]*))?\]$/', $para, $m)) {
+            [$h, $t] = blast_lastchance($m[1] ?? '');
+            $html .= $h;
+            $text[] = $t;
+            continue;
+        }
+        if (preg_match('/^\[banner:([^\]]+)\]$/', $para, $m)) {
+            $line = trim($m[1]);
+            $html .= '<div style="margin:0 -8px 18px;background:#e8504f;border-radius:10px;padding:22px 18px;text-align:center;color:#ffffff;font-family:Georgia,serif;font-size:26px;line-height:1.25">'
+                . e($line) . '<div style="width:60px;height:4px;background:#f2c94c;margin:12px auto 0;border-radius:2px"></div></div>';
+            $text[] = strtoupper($line);
             continue;
         }
         if (preg_match('/^\[image:(https:\/\/[^\]|\s]+)(?:\|([^\]]*))?\]$/', $para, $m)) {

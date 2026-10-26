@@ -36,10 +36,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (($blocker = blast_blocker()) !== '') {
             flash($blocker);
         } elseif ($action === 'test') {
-            $owner = (string)config('owner_email');
-            // A test uses a placeholder unsubscribe link and the first name "there".
-            [$s, , $err] = blast_send_to('[Test] ' . $subject, $body, [['email' => $owner, 'first_name' => '', 'token' => str_repeat('0', 32)]]);
-            flash($s ? 'Test sent to ' . $owner . '.' : 'Test failed: ' . $err);
+            // A test goes to one address with a placeholder unsubscribe link,
+            // and isn't added to the list or the sent log.
+            $to = strtolower(trim((string)($_POST['test_to'] ?? ''))) ?: (string)config('owner_email');
+            $_SESSION['blast_test_to'] = $to;
+            if (!subscriber_email_ok($to)) {
+                flash('"' . $to . '" is not an email address.');
+            } else {
+                [$s, , $err] = blast_send_to($subject, $body, [['email' => $to, 'first_name' => trim(mb_substr((string)($_POST['test_name'] ?? ''), 0, 100)), 'token' => str_repeat('0', 32)]]);
+                flash($s ? 'Test sent to ' . $to . '.' : 'Test failed: ' . $err);
+            }
         } elseif (empty($_POST['confirm_send'])) {
             flash('Tick the box to confirm before sending to the whole list.');
         } else {
@@ -146,11 +152,16 @@ admin_header('Email');
   <label>Message
     <textarea name="body" rows="12" required placeholder="Hi {first_name},&#10;&#10;New yarn just came in...&#10;&#10;https://discount-yarn.com/shop.php?sale=1"><?= e($draft['body']) ?></textarea>
   </label>
-  <p class="muted-note">Plain text. Leave a blank line between paragraphs; web addresses become links. <code>{first_name}</code> becomes each person's first name, or "there". On a line of its own, <code>[product:paladin]</code> adds a product card with its photo, current price and a Shop now button (use the part after <code>slug=</code> in the product link), and <code>[image:https://...|description]</code> adds an uploaded image. The store name, your postal address and an unsubscribe link are added automatically.</p>
+  <p class="muted-note">Plain text. Leave a blank line between paragraphs; web addresses become links. <code>{first_name}</code> becomes each person's first name, or "there". On a line of its own, <code>[product:paladin]</code> adds a product card with its photo, current price and a Shop now button (use the part after <code>slug=</code> in the product link), <code>[image:https://...|description]</code> adds an uploaded image, <code>[banner:Last call]</code> adds a bright headline, and <code>[lastchance]</code> adds four yarns with how many skeins are left and tappable colorways (it picks the four in-stock yarns with the fewest left; to choose, write <code>[lastchance:paladin, cardiff-cashmere-classic-tweed]</code>). The store name, your postal address and an unsubscribe link are added automatically.</p>
   <div class="actions">
     <button type="submit" name="action" value="preview">Preview</button>
-    <button type="submit" name="action" value="test">Send a test to <?= e(config('owner_email')) ?></button>
   </div>
+  <div class="test-row">
+    <label>Test to <input name="test_to" type="email" value="<?= e($_SESSION['blast_test_to'] ?? config('owner_email')) ?>"></label>
+    <label>First name (optional) <input name="test_name" maxlength="100"></label>
+    <button type="submit" name="action" value="test">Send one test</button>
+  </div>
+  <p class="muted-note">A test goes only to that address. It isn't added to the list, and its unsubscribe link does nothing.</p>
   <div class="actions">
     <label class="check"><input type="checkbox" name="confirm_send" value="1"> Send to all <?= $confirmed ?> confirmed subscribers</label>
     <button type="submit" name="action" value="send" class="danger"<?= $confirmed === 0 ? ' disabled' : '' ?>>Send blast</button>
