@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '9';
+const ASSET_VERSION = '10';
 
 // Yarn weights that have live yarn, in the usual thin-to-thick order.
 function nav_weights(): array
