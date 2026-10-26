@@ -41,6 +41,7 @@ function admin_header(string $title): void
     <a href="/admin/import.php">CSV import</a>
     <a href="/admin/orders.php">Orders</a>
     <a href="/admin/visitors.php">Visitors</a>
+    <a href="/admin/email.php">Email</a>
     <a href="/admin/pricing.php">Pricing</a>
     <a href="/admin/shopify.php">Shopify</a>
     <a href="/admin/stripe.php">Stripe</a>

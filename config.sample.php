@@ -36,6 +36,8 @@ return [
     'timezone'      => 'America/New_York',           // times in admin, emails and visitor stats
     'support_email' => 'hello@discount-yarn.com',         // shown to shoppers, reply-to on emails
     'owner_email'   => 'orders@discount-yarn.com',        // gets a copy of every new order
+    // Postal address printed in every email blast (required by US law, CAN-SPAM).
+    'mailing_address' => '',
 
     // MySQL (create the database and user in cPanel > MySQL Databases)
     'db' => [
@@ -63,7 +65,8 @@ return [
     'postmark' => [
         'server_token'   => 'CHANGE_ME',
         'from'           => 'Discount Yarn <orders@discount-yarn.com>',  // must be a verified sender signature or domain
-        'message_stream' => 'outbound',
+        'message_stream' => 'outbound',          // order and sign-up confirmation emails
+        'broadcast_stream' => 'broadcast',       // email blasts (create a Broadcast stream in Postmark)
     ],
 
     // Shipping (US only to start). Amounts in cents.

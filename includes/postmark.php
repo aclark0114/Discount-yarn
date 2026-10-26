@@ -22,7 +22,7 @@ function postmark_send(string $to, string $subject, string $html, string $text, 
     if ($tag) {
         $payload['Tag'] = $tag;
     }
-    $ch = curl_init('https://api.postmarkapp.com/email');
+    $ch = curl_init(rtrim(getenv('POSTMARK_TEST_BASE') ?: 'https://api.postmarkapp.com', '/') . '/email');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
@@ -42,6 +42,51 @@ function postmark_send(string $to, string $subject, string $html, string $text, 
         return false;
     }
     return true;
+}
+
+// Sends up to 500 messages in one Postmark batch call. Each message is a
+// Postmark email array (From, To, Subject, HtmlBody, TextBody, ...).
+// Returns [sent, failed, first error message or ''].
+function postmark_batch(array $messages): array
+{
+    $token = (string)config('postmark.server_token');
+    if ($token === '' || $token === 'CHANGE_ME') {
+        return [0, count($messages), 'Postmark is not configured (postmark.server_token).'];
+    }
+    if (!$messages) {
+        return [0, 0, ''];
+    }
+    $ch = curl_init(rtrim(getenv('POSTMARK_TEST_BASE') ?: 'https://api.postmarkapp.com', '/') . '/email/batch');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode(array_values($messages)),
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json',
+            'Content-Type: application/json',
+            'X-Postmark-Server-Token: ' . $token,
+        ],
+        CURLOPT_TIMEOUT        => 60,
+    ]);
+    $body = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    $results = json_decode(is_string($body) ? $body : '', true);
+    if ($status !== 200 || !is_array($results)) {
+        $msg = is_array($results) ? (string)($results['Message'] ?? '') : '';
+        error_log('Postmark batch failed (' . $status . '): ' . $msg);
+        return [0, count($messages), 'Postmark refused the batch (HTTP ' . $status . ($msg !== '' ? ': ' . $msg : '') . ').'];
+    }
+    $sent = 0;
+    $error = '';
+    foreach ($results as $r) {
+        if ((int)($r['ErrorCode'] ?? 1) === 0) {
+            $sent++;
+        } elseif ($error === '') {
+            $error = (string)($r['Message'] ?? 'unknown error');
+        }
+    }
+    return [$sent, count($messages) - $sent, $error];
 }
 
 function order_items_for(int $orderId): array

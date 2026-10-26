@@ -5,3 +5,5 @@ Disallow: /checkout.php
 Disallow: /success.php
 Disallow: /webhook.php
 
+Disallow: /confirm.php
+Disallow: /unsubscribe.php

@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '10';
+const ASSET_VERSION = '11';
 
 // Yarn weights that have live yarn, in the usual thin-to-thick order.
 function nav_weights(): array
@@ -109,11 +109,20 @@ function page_footer(): void
   <div class="wrap footer-grid">
     <div>
       <p class="logo logo-sm"><?= e($store) ?></p>
-      <p><?= e(config('tagline')) ?></p>
+      <form class="footer-signup" method="post" action="/subscribe.php">
+        <?= csrf_field() ?>
+        <label for="fs-email">Email when new yarn comes in or prices drop</label>
+        <div class="footer-signup-row">
+          <input id="fs-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+          <button type="submit">Sign up</button>
+        </div>
+        <div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+      </form>
     </div>
     <div>
       <h2>Shop</h2>
-      <a href="/shop.php">All yarn</a>
+      <a href="/shop.php?cat=yarn">All yarn</a>
+      <a href="/shop.php?cat=accessories">Accessories</a>
       <a href="/shop.php?sale=1">On sale</a>
       <a href="/shop.php?sort=new">New arrivals</a>
     </div>
