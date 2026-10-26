@@ -94,7 +94,11 @@ function group_card(array $g): void
     <div class="card-body">
       <?php if ($p['brand'] !== ''): ?><p class="card-brand"><?= e($p['brand']) ?></p><?php endif; ?>
       <h3><a href="<?= e($href) ?>"><?= e($p['name']) ?></a></h3>
-      <p class="card-meta"><?= e(implode(' · ', array_filter([$p['weight'], $n > 1 ? $n . ' colorways' : $p['colorway']]))) ?></p>
+      <?php if (($p['category'] ?? 'yarn') === 'accessory'): ?>
+        <p class="card-meta"><?= e(implode(' · ', array_filter([$p['product_type'] ?? '', $n > 1 ? $n . ' options' : '']))) ?></p>
+      <?php else: ?>
+        <p class="card-meta"><?= e(implode(' · ', array_filter([$p['weight'], $n > 1 ? $n . ' colorways' : $p['colorway']]))) ?></p>
+      <?php endif; ?>
       <p class="price">
         <?php if ($single): ?>
           <?php if (percent_off($p) > 0): ?><s><?= money((int)$p['price_cents']) ?></s> <?php endif; ?>

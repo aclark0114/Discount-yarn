@@ -35,6 +35,22 @@ foreach ($variants as $v) {
     }
 }
 $cart = cart_raw();
+$isYarn = ($p['category'] ?? 'yarn') !== 'accessory';
+
+// "12 in stock", or how many are left after what's already in the cart.
+function stock_note(int $stock, int $inCart): string
+{
+    if ($stock <= 0) {
+        return 'Sold out';
+    }
+    if ($inCart <= 0) {
+        return $stock . ' in stock';
+    }
+    $left = $stock - $inCart;
+    return $left > 0
+        ? $stock . ' in stock, ' . $inCart . ' already in your cart'
+        : 'All ' . $stock . ' in stock are in your cart';
+}
 $multi = count($variants) > 1;
 $anyInStock = (int)$variants[0]['stock'] > 0;
 $stock = (int)$p['stock'];
@@ -99,7 +115,7 @@ page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['n
           <input type="hidden" name="action" value="add">
           <?php if ($multi): ?>
             <fieldset class="swatches">
-              <legend>Colorway <span class="muted">(<?= count($variants) ?>)</span></legend>
+              <legend><?= $isYarn ? 'Colorway' : 'Option' ?> <span class="muted">(<?= count($variants) ?>)</span></legend>
               <?php foreach ($variants as $v):
                   $vs = (int)$v['stock'];
                   $vc = (int)($cart[$v['id']] ?? 0); ?>
@@ -114,21 +130,21 @@ page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['n
                   <input type="radio" name="product_id" value="<?= (int)$v['id'] ?>"<?= (int)$v['id'] === (int)$p['id'] ? ' checked' : '' ?><?= $vs <= 0 ? ' disabled' : '' ?>>
                   <img src="<?= e(product_image($v, 120)) ?>" alt="" width="56" height="56" loading="lazy">
                   <span class="swatch-name"><?= e($v['colorway'] ?: 'Standard') ?></span>
-                  <span class="swatch-note"><?= $vs <= 0 ? 'Sold out' : ($vs <= 5 ? 'Only ' . $vs . ' left' : '') ?></span>
+                  <span class="swatch-note<?= $vs > 5 ? ' swatch-plenty' : '' ?>"><?= $vs <= 0 ? 'Sold out' : $vs . ' in stock' ?></span>
                 </label>
               <?php endforeach; ?>
             </fieldset>
           <?php else: ?>
             <input type="hidden" name="product_id" value="<?= (int)$p['id'] ?>">
           <?php endif; ?>
-          <p class="stock <?= $stock <= 5 ? 'stock-low' : '' ?>" id="stock-note"><?= $stock <= 5 ? 'Only ' . $stock . ' left' : 'In stock' ?></p>
-          <label for="qty">Skeins</label>
+          <p class="stock <?= $stock <= 5 ? 'stock-low' : '' ?>" id="stock-note"><?= e(stock_note($stock, $inCart)) ?></p>
+          <label for="qty"><?= $isYarn ? 'Skeins' : 'Quantity' ?></label>
           <div class="qty">
             <button type="button" data-step="-1" aria-label="Fewer">&minus;</button>
             <input id="qty" name="qty" type="number" min="1" max="<?= max(1, $stock - $inCart) ?>" value="1" inputmode="numeric">
             <button type="button" data-step="1" aria-label="More">+</button>
           </div>
-          <button class="btn" type="submit" id="add-btn"<?= $inCart >= $stock ? ' disabled' : '' ?>>Add to cart</button>
+          <button class="btn" type="submit" id="add-btn"<?= $inCart >= $stock ? ' disabled' : '' ?>><?= $inCart >= $stock ? 'All in your cart' : 'Add to cart' ?></button>
         </form>
         <p class="muted" id="in-cart"<?= $inCart > 0 ? '' : ' hidden' ?>><span><?= $inCart ?></span> already in your <a href="/cart.php">cart</a>.</p>
       <?php else: ?>
@@ -145,7 +161,7 @@ page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['n
         <?php endforeach; ?>
         <dt>SKU</dt><dd id="sku"><?= e($p['sku']) ?></dd>
       </dl>
-      <p class="muted small">Discounted yarn is final sale unless it arrives damaged. <a href="/shipping.php">Shipping and returns</a></p>
+      <p class="muted small"><?= $isYarn ? 'Discounted yarn is' : 'Discounted items are' ?> final sale. <a href="/shipping.php">Shipping and returns</a></p>
     </div>
   </div>
 </div>

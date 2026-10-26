@@ -24,6 +24,15 @@
     });
   });
 
+  // Quantity boxes never go past what's in stock, even when typed.
+  document.querySelectorAll('input[type="number"][max]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      var max = parseInt(input.max, 10), min = parseInt(input.min || '0', 10), v = parseInt(input.value, 10);
+      if (isNaN(v) || v < min) input.value = min;
+      else if (!isNaN(max) && v > max) input.value = max;
+    });
+  });
+
   // Product gallery: a thumbnail shows its photo in the main spot.
   var main = document.getElementById('main-img');
   document.querySelectorAll('.thumbs a').forEach(function (a) {
@@ -56,12 +65,15 @@
       show($('off-badge'), d.off !== '0' ? d.off + '% off' : '');
       $('sku').textContent = d.sku;
       var note = $('stock-note');
-      note.textContent = stock <= 5 ? 'Only ' + stock + ' left' : 'In stock';
+      var left = stock - inCart;
+      note.textContent = inCart <= 0 ? stock + ' in stock'
+        : (left > 0 ? stock + ' in stock, ' + inCart + ' already in your cart' : 'All ' + stock + ' in stock are in your cart');
       note.classList.toggle('stock-low', stock <= 5);
       var qty = $('qty');
-      qty.max = Math.max(1, stock - inCart);
+      qty.max = Math.max(1, left);
       if (parseInt(qty.value, 10) > qty.max) qty.value = qty.max;
-      $('add-btn').disabled = inCart >= stock;
+      $('add-btn').disabled = left <= 0;
+      $('add-btn').textContent = left <= 0 ? 'All in your cart' : 'Add to cart';
       var ic = $('in-cart');
       if (ic) { ic.hidden = inCart === 0; ic.querySelector('span').textContent = inCart; }
     };

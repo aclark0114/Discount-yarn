@@ -5,7 +5,24 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '6';
+const ASSET_VERSION = '9';
+
+// Yarn weights that have live yarn, in the usual thin-to-thick order.
+function nav_weights(): array
+{
+    static $weights = null;
+    if ($weights === null) {
+        $have = db()->query("SELECT DISTINCT weight FROM products WHERE is_active = 1 AND category = 'yarn' AND weight <> ''")->fetchAll(PDO::FETCH_COLUMN);
+        $weights = array_values(array_filter(YARN_WEIGHTS, fn($w) => in_array($w, $have, true)));
+        // Weights from Shopify outside the usual list go at the end.
+        foreach ($have as $w) {
+            if (!in_array($w, $weights, true)) {
+                $weights[] = $w;
+            }
+        }
+    }
+    return $weights;
+}
 
 function page_header(string $title, string $description = '', string $active = '', string $canonical = ''): void
 {
@@ -16,12 +33,12 @@ function page_header(string $title, string $description = '', string $active = '
     $canonical = $canonical !== '' ? $canonical : url($path);
     $count = cart_count();
     $nav = [
-        '/shop.php'          => 'Shop all',
-        '/shop.php?sale=1'   => 'On sale',
-        '/shop.php?weight=Worsted' => 'Worsted',
-        '/shop.php?weight=Fingering' => 'Fingering',
-        '/about.php'         => 'About',
+        '/shop.php?cat=yarn'        => 'Yarn',
+        '/shop.php?cat=accessories' => 'Accessories',
+        '/shop.php?sale=1'          => 'On sale',
+        '/about.php'                => 'About',
     ];
+    $weights = nav_weights();
     ?><!doctype html>
 <html lang="en">
 <head>
@@ -64,6 +81,16 @@ function page_header(string $title, string $description = '', string $active = '
       <span class="cart-count"><?= $count ?></span>
     </a>
   </div>
+  <?php if ($weights): ?>
+  <nav class="weight-nav" aria-label="Yarn by weight">
+    <div class="wrap weight-row">
+      <span class="weight-label">Yarn by weight</span>
+      <?php foreach ($weights as $w): $href = '/shop.php?weight=' . rawurlencode($w); ?>
+        <a href="<?= e($href) ?>"<?= $active === $href ? ' aria-current="page"' : '' ?>><?= e($w) ?></a>
+      <?php endforeach; ?>
+    </div>
+  </nav>
+  <?php endif; ?>
 </header>
 <main id="main">
 <?php

@@ -13,15 +13,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $p = $st->fetch();
         if ($p && (int)$p['stock'] > 0) {
             $have = (int)(cart_raw()[$id] ?? 0);
-            $new = min($have + max(1, $qty), (int)$p['stock']);
+            $wanted = $have + max(1, $qty);
+            $new = min($wanted, (int)$p['stock']);
             cart_set($id, $new);
             if ($new > $have) {
                 require_once __DIR__ . '/includes/activity.php';
                 activity_log('add_to_cart', ['path' => '/product.php', 'product' => $p['group_slug'] ?: $p['slug'], 'value_cents' => effective_price($p) * ($new - $have)]);
             }
-            flash($new > $have
-                ? 'Added ' . $p['name'] . ' to your cart.'
-                : 'You already have all ' . (int)$p['stock'] . ' in stock in your cart.');
+            $label = $p['name'] . ($p['colorway'] !== '' ? ' (' . $p['colorway'] . ')' : '');
+            if ($new <= $have) {
+                flash('You already have all ' . (int)$p['stock'] . ' of ' . $label . ' in stock in your cart.');
+            } elseif ($new < $wanted) {
+                flash('Only ' . (int)$p['stock'] . ' of ' . $label . ' in stock, so your cart now has ' . $new . '.');
+            } else {
+                flash('Added ' . $label . ' to your cart.');
+            }
         }
     } elseif ($action === 'update') {
         foreach ((array)($_POST['qty'] ?? []) as $pid => $q) {
@@ -62,7 +68,7 @@ page_header('Your cart');
             <div class="cart-line-info">
               <a href="/product.php?slug=<?= e(rawurlencode((string)($p['group_slug'] ?: $p['slug']))) ?>&amp;v=<?= (int)$p['id'] ?>"><?= e($p['name']) ?></a>
               <span class="muted"><?= e(implode(' · ', array_filter([$p['brand'], $p['colorway']]))) ?></span>
-              <span><?= money($l['unit']) ?> each</span>
+              <span><?= money($l['unit']) ?> each · <?= (int)$p['stock'] ?> in stock</span>
             </div>
             <label class="sr-only" for="q<?= (int)$p['id'] ?>">Quantity</label>
             <input class="qty-input" id="q<?= (int)$p['id'] ?>" type="number" name="qty[<?= (int)$p['id'] ?>]" min="0" max="<?= (int)$p['stock'] ?>" value="<?= $l['qty'] ?>">

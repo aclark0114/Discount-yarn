@@ -6,17 +6,35 @@ require __DIR__ . '/includes/catalog.php';
 $featured = catalog_groups(['is_active = 1', 'stock > 0'], [], 'featured', 8);
 
 $weights = db()->query(
-    "SELECT weight, COUNT(DISTINCT group_slug) AS n FROM products WHERE is_active = 1 AND stock > 0 AND weight <> '' GROUP BY weight"
+    "SELECT weight, COUNT(DISTINCT group_slug) AS n FROM products WHERE is_active = 1 AND stock > 0 AND category = 'yarn' AND weight <> '' GROUP BY weight"
 )->fetchAll(PDO::FETCH_KEY_PAIR);
 
-$inStock = (int)db()->query('SELECT COUNT(DISTINCT group_slug) FROM products WHERE is_active = 1 AND stock > 0')->fetchColumn();
+$inStock = (int)db()->query("SELECT COUNT(DISTINCT group_slug) FROM products WHERE is_active = 1 AND stock > 0 AND category = 'yarn'")->fetchColumn();
 
-// Real product photos for the top of the page: in-stock yarn with a photo,
-// biggest discounts first.
-$heroPhotos = catalog_groups(
-    ['is_active = 1', 'stock > 0', "(image_url IS NOT NULL OR image IS NOT NULL)"],
-    [], 'featured', 4
-);
+// Photos for the top of the page: yarn only (never books or bags), one per
+// weight with the best-stocked weights first, 4 in total.
+$heroWhere = ['is_active = 1', 'stock > 0', "category = 'yarn'", '(image_url IS NOT NULL OR image IS NOT NULL)'];
+$heroPhotos = [];
+$byWeight = db()->query(
+    "SELECT weight FROM products WHERE is_active = 1 AND stock > 0 AND category = 'yarn' AND weight <> ''
+     AND (image_url IS NOT NULL OR image IS NOT NULL) GROUP BY weight ORDER BY COUNT(DISTINCT group_slug) DESC"
+)->fetchAll(PDO::FETCH_COLUMN);
+foreach ($byWeight as $w) {
+    if (count($heroPhotos) >= 4) {
+        break;
+    }
+    $heroPhotos = array_merge($heroPhotos, catalog_groups([...$heroWhere, 'weight = ?'], [$w], 'featured', 1));
+}
+// Fewer than 4 weights in stock: fill up with other yarn.
+if (count($heroPhotos) < 4) {
+    $taken = array_map(fn($g) => (string)$g['group_slug'], $heroPhotos);
+    $more = catalog_groups($heroWhere, [], 'featured', 4 + count($taken));
+    foreach ($more as $g) {
+        if (count($heroPhotos) < 4 && !in_array((string)$g['group_slug'], $taken, true)) {
+            $heroPhotos[] = $g;
+        }
+    }
+}
 
 $brands = db()->query(
     "SELECT brand, COUNT(DISTINCT group_slug) AS n FROM products WHERE is_active = 1 AND stock > 0 AND brand <> ''
@@ -39,7 +57,7 @@ page_header('');
     <?php if (count($heroPhotos) >= 2): ?>
       <div class="hero-photos count-<?= count($heroPhotos) ?>">
         <?php foreach ($heroPhotos as $g): $p = $g['rep']; ?>
-          <a href="<?= e(group_url((string)$g['group_slug'])) ?>">
+          <a href="<?= e(group_url((string)$g['group_slug'])) ?>" title="<?= e($p['name'] . ($p['weight'] ? ', ' . $p['weight'] : '')) ?>">
             <img src="<?= e(product_image($p, 500)) ?>" alt="<?= e($p['name'] . ($p['brand'] ? ' by ' . $p['brand'] : '')) ?>" width="500" height="500">
           </a>
         <?php endforeach; ?>
@@ -71,7 +89,7 @@ page_header('');
   <div class="wrap section">
     <h2>Shop by weight</h2>
     <ul class="weights">
-      <?php foreach (YARN_WEIGHTS as $w): if (empty($weights[$w])) { continue; } $n = (int)$weights[$w]; ?>
+      <?php foreach (nav_weights() as $w): if (empty($weights[$w])) { continue; } $n = (int)$weights[$w]; ?>
         <li><a href="/shop.php?weight=<?= e(rawurlencode($w)) ?>">
           <span class="weight-name"><?= e($w) ?></span>
           <span class="weight-count"><?= $n ?> <?= $n === 1 ? 'yarn' : 'yarns' ?></span>

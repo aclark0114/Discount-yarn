@@ -107,6 +107,24 @@ function shopify_guess_weight(array $product, array $variant): string
     return '';
 }
 
+// Shopify product types that are never yarn, even when a tag mentions a weight
+// (a pattern book tagged "worsted", for example).
+const ACCESSORY_TYPE_RE = '/book|magazine|pattern|bag|tote|pouch|case|needle|hook|notion|tool|kit|gift|card|button|accessor|swift|winder|blocking|marker|scissor|gauge|candle|mug|print/i';
+
+// 'yarn' or 'accessory' for a Shopify product.
+function shopify_category(array $product, string $weight): string
+{
+    $type = (string)($product['productType'] ?? '');
+    if ($type !== '' && preg_match(ACCESSORY_TYPE_RE, $type) && !preg_match('/yarn/i', $type)) {
+        return 'accessory';
+    }
+    if ($weight !== '') {
+        return 'yarn';
+    }
+    $text = $type . ' ' . implode(' ', (array)($product['tags'] ?? []));
+    return preg_match('/yarn|skein|hank/i', $text) ? 'yarn' : 'accessory';
+}
+
 // A tag like "100% merino" or "fiber: alpaca", or a Fiber option.
 function shopify_guess_fiber(array $product, array $variant): string
 {
@@ -147,6 +165,12 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         $stock = 0;
     }
 
+    $weight = shopify_guess_weight($product, $variant);
+    $category = shopify_category($product, $weight);
+    if ($category === 'accessory') {
+        $weight = '';   // keeps books and bags out of the weight pages
+    }
+
     $sku = trim((string)$variant['sku']);
     $fallback = 'SH-' . preg_replace('/\D/', '', (string)$variant['id']);
     if ($sku === '') {
@@ -162,7 +186,9 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         'sku'                => mb_substr($sku, 0, 64),
         'name'               => mb_substr((string)$product['title'], 0, 200),
         'brand'              => mb_substr((string)$product['vendor'], 0, 120),
-        'weight'             => shopify_guess_weight($product, $variant),
+        'weight'             => $weight,
+        'category'           => $category,
+        'product_type'       => mb_substr((string)($product['productType'] ?? ''), 0, 120),
         'fiber'              => mb_substr(shopify_guess_fiber($product, $variant), 0, 160),
         'colorway'           => mb_substr($colorway, 0, 120),
         'description'        => (string)($product['description'] ?? ''),

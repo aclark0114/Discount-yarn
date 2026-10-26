@@ -16,7 +16,7 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `track.php`, `includes/activity.php`, `admin/visitors.php` | First-party visitor activity and the admin Visitors page |
 | `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
 | `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
-| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql` | Database tables, run once each in phpMyAdmin, in order |
+| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `admin/pricing.php`, `includes/pricing.php` | Discount tiers for Shopify yarn |
 | `includes/catalog.php` | Grouped catalog: one card and one page per product, with a colorway picker |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
@@ -69,6 +69,8 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   - Each Shopify product gets one card in the shop and one page, with a picker for its colorways (variants). Sold-out colorways are shown but can't be picked. Vendor becomes brand.
   - **Photos.** All photos come from Shopify and load from Shopify's image servers (resized with `?width=`), so nothing is copied onto this server. Each colorway uses its own photo, falling back to the product's main photo. The product page also shows up to 10 product photos as thumbnails, in Shopify's order and with Shopify's alt text. Videos and 3D models are skipped. Photo changes in Shopify appear after the next sync.
   - Weight is guessed from the product type, tags or a "Weight" option, and fiber from a tag such as `100% merino` or `fiber: alpaca`.
+  - **Yarn or accessory.** Shopify product types such as Book, Bag, Notions, Needles, Kit or Pattern are accessories, even if a tag mentions a weight (a pattern book tagged "worsted", for example). Otherwise a product is yarn if a weight is found, or if its type or tags say yarn. Accessories appear under Accessories in the menu, never on weight pages or in the home page photos.
+  - **Menu.** The row of weights under the header lists every weight that has yarn in the catalog, from Lace to Super Bulky.
   - Only active Shopify products are copied. Products that are deleted, archived or set to draft disappear from the store on the next sync.
 - **Prices (discount tiers).** In admin > Pricing, choose a tier for the whole store, for each brand, and for any single product. A product's own tier beats its brand's, and a brand's beats the store default. Shoppers pay Shopify's price less the tier. The struck-through price is the higher of Shopify's price and its compare-at price. Changes apply immediately. The tiers on offer come from `discount_buckets` in the config (default 10, 25 and 50 percent; "No discount" is always available).
 - **Stock.** With `write_inventory` granted, the store subtracts the skeins from Shopify when Stripe confirms a payment, so Stars Hollow can't sell them again.

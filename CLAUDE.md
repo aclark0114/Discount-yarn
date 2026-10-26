@@ -17,6 +17,7 @@ PHP 8 + MySQL yarn shop on GoDaddy cPanel. Stripe Checkout (Leafwood Advisory's 
 - Every POST form includes `csrf_field()` and its handler calls `csrf_check()`.
 - Prices and stock are read from the database at checkout, never trusted from the browser. Shopify-synced rows (`shopify_variant_id` set) are read-only in admin; checkout re-checks them live with `shopify_revalidate_lines()`.
 - Store pages never call Shopify; only cron, admin and checkout do.
+- `products.category` is `yarn` or `accessory` (set by the sync from Shopify's product type); weight pages, the weight menu and the home hero use yarn only.
 - Admin API auth is the OAuth authorization code grant only (`shopify/install.php`, `shopify/callback.php`); the offline token lives in `shopify_token.json` next to the config, outside public_html, and is never printed or logged. Storefront calls use `shopify.storefront_token` from config.
 - `shopify_storefront_only()` (no saved Admin token yet) routes sync and live checks through the Storefront API; `shopify_can_push_stock()` (token has write_inventory) gates the stock push. Keep both paths working.
 - Checkout is Stripe Embedded Checkout (`ui_mode=embedded`, `assets/checkout.js`) when `stripe.publishable_key` is set, Stripe-hosted otherwise. Checkout Sessions carry `metadata.store = discount-yarn`; the webhook ignores sessions without it because the Stripe account is shared with Leafwood.

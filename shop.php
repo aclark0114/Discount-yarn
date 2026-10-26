@@ -3,7 +3,12 @@ require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/layout.php';
 require __DIR__ . '/includes/catalog.php';
 
-$weight = isset($_GET['weight']) && in_array($_GET['weight'], YARN_WEIGHTS, true) ? $_GET['weight'] : '';
+$weightOptions = array_values(array_unique(array_merge(nav_weights(), YARN_WEIGHTS)));
+$weight = isset($_GET['weight']) && in_array($_GET['weight'], $weightOptions, true) ? $_GET['weight'] : '';
+$cat    = isset($_GET['cat']) && in_array($_GET['cat'], ['yarn', 'accessories'], true) ? $_GET['cat'] : '';
+if ($weight !== '') {
+    $cat = 'yarn';
+}
 $brand  = isset($_GET['brand']) && is_string($_GET['brand']) ? trim($_GET['brand']) : '';
 $q      = isset($_GET['q']) && is_string($_GET['q']) ? trim(mb_substr($_GET['q'], 0, 80)) : '';
 $sale   = !empty($_GET['sale']);
@@ -14,6 +19,7 @@ $sort = isset($_GET['sort']) && in_array($_GET['sort'], ['featured', 'new', 'pri
 
 $where = ['is_active = 1'];
 $args = [];
+if ($cat !== '')    { $where[] = 'category = ?'; $args[] = $cat === 'accessories' ? 'accessory' : 'yarn'; }
 if ($weight !== '') { $where[] = 'weight = ?'; $args[] = $weight; }
 if ($brand !== '')  { $where[] = 'brand = ?';  $args[] = $brand; }
 if ($sale)          { $where[] = 'sale_price_cents IS NOT NULL AND sale_price_cents > 0 AND sale_price_cents < price_cents'; }
@@ -35,8 +41,14 @@ $products = catalog_groups($where, $args, $sort, $perPage, ($page - 1) * $perPag
 
 $brands = db()->query("SELECT DISTINCT brand FROM products WHERE is_active = 1 AND brand <> '' ORDER BY brand")->fetchAll(PDO::FETCH_COLUMN);
 
-$heading = $sale ? 'On sale' : ($weight !== '' ? $weight . ' yarn' : ($brand !== '' ? $brand : 'All yarn'));
-$active = $sale ? '/shop.php?sale=1' : ($weight !== '' ? '/shop.php?weight=' . $weight : ($brand === '' && $q === '' ? '/shop.php' : ''));
+$heading = $sale ? 'On sale'
+    : ($weight !== '' ? $weight . ' yarn'
+    : ($cat === 'accessories' ? 'Accessories'
+    : ($brand !== '' ? $brand
+    : ($cat === 'yarn' ? 'All yarn' : 'Shop all'))));
+$active = $sale ? '/shop.php?sale=1'
+    : ($weight !== '' ? '/shop.php?weight=' . rawurlencode($weight)
+    : ($cat !== '' ? '/shop.php?cat=' . $cat : ''));
 
 function shop_link(array $changes): string
 {
@@ -54,19 +66,23 @@ page_header($heading, 'Shop ' . strtolower($heading) . ' at discount prices.', $
 <div class="wrap section">
   <div class="section-head">
     <h1><?= e($heading) ?></h1>
-    <p class="muted"><?= $total ?> <?= $total === 1 ? 'yarn' : 'yarns' ?></p>
+    <?php $noun = $cat === 'yarn' ? ['yarn', 'yarns'] : ['item', 'items']; ?>
+    <p class="muted"><?= $total ?> <?= $total === 1 ? $noun[0] : $noun[1] ?></p>
   </div>
 
   <form class="filters" method="get" action="/shop.php">
     <label class="sr-only" for="q">Search</label>
-    <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="Search brand, color, fiber">
+    <input type="search" id="q" name="q" value="<?= e($q) ?>" placeholder="<?= $cat === 'accessories' ? 'Search bags, books, needles' : 'Search brand, color, fiber' ?>">
+    <?php if ($cat !== ''): ?><input type="hidden" name="cat" value="<?= e($cat) ?>"><?php endif; ?>
+    <?php if ($cat !== 'accessories'): ?>
     <label class="sr-only" for="weight">Weight</label>
     <select id="weight" name="weight">
       <option value="">Any weight</option>
-      <?php foreach (YARN_WEIGHTS as $w): ?>
+      <?php foreach (nav_weights() as $w): ?>
         <option<?= $w === $weight ? ' selected' : '' ?>><?= e($w) ?></option>
       <?php endforeach; ?>
     </select>
+    <?php endif; ?>
     <label class="sr-only" for="brand">Brand</label>
     <select id="brand" name="brand">
       <option value="">Any brand</option>
