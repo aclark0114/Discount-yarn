@@ -91,3 +91,5 @@ code { background: #efe5d3; padding: 1px 5px; border-radius: 4px; }
 .photo-strip { display: flex; flex-wrap: wrap; gap: 8px; }
 .photo-strip img { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: var(--r); border: 1px solid var(--line); background: var(--bg); }
 @media (max-width: 640px) { .photo-strip img { width: 96px; height: 96px; } }
+.hide-list { margin: 0 0 18px; }
+.hide-list summary { cursor: pointer; font-weight: 600; color: var(--green); }

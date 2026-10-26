@@ -20,6 +20,30 @@ $back = '/admin/hide.php?' . http_build_query(array_filter(['phrase' => $phrase,
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = (string)($_POST['action'] ?? '');
+    if ($action === 'hide_list') {
+        // Product addresses, store links (product.php?slug=...) or Shopify
+        // links (/products/handle), separated by lines, commas or spaces.
+        $wanted = [];
+        foreach (preg_split('/[\s,]+/', (string)($_POST['list'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $item) {
+            if (preg_match('/[?&]slug=([^&#\s]+)/', $item, $m) || preg_match('~/products/([^/?#\s]+)~', $item, $m)) {
+                $item = rawurldecode($m[1]);
+            }
+            $wanted[slugify($item)] = $item;
+        }
+        $found = [];
+        if ($wanted) {
+            $in = implode(', ', array_fill(0, count($wanted), '?'));
+            $st = db()->prepare("SELECT DISTINCT group_slug FROM products WHERE group_slug IN ($in)");
+            $st->execute(array_keys($wanted));
+            $found = $st->fetchAll(PDO::FETCH_COLUMN);
+        }
+        $missing = array_diff_key($wanted, array_flip($found));
+        products_set_hidden($found, true);
+        flash(!$wanted ? 'Paste at least one product address first.'
+            : sprintf('Hid %d of %d products.', count($found), count($wanted))
+              . ($missing ? ' Not found in the store: ' . implode(', ', array_slice(array_values($missing), 0, 20)) . (count($missing) > 20 ? ' and ' . (count($missing) - 20) . ' more' : '') . '.' : ''));
+        redirect($back);
+    }
     $groups = (array)($_POST['groups'] ?? []);
     if (preg_match('/^(hide|show):(.+)$/', $action, $m)) {   // the button on one row
         [$action, $groups] = [$m[1], [$m[2]]];
@@ -94,6 +118,17 @@ admin_header('Hide products');
 </form>
 <p><strong><?= count($matches) ?></strong> of <?= count($groups) ?> products mention "<?= e($phrase) ?>". <?= $hiddenCount ?> <?= $hiddenCount === 1 ? 'product is' : 'products are' ?> hidden by you right now.
   <?php if (!$showAll && $hiddenCount > count(array_filter($matches, fn($g) => $g['hidden'] > 0))): ?><a href="/admin/hide.php?all=1">See them all</a><?php endif; ?></p>
+
+<details class="hide-list"<?= isset($_GET['paste']) ? ' open' : '' ?>>
+  <summary>Hide a list of products</summary>
+  <form class="edit" method="post" action="<?= e($back) ?>">
+    <?= csrf_field() ?>
+    <label>Product addresses, one per line (the part after "slug=", a store product link, or a Stars Hollow product link)
+      <textarea name="list" rows="6" placeholder="paladin&#10;cardiff-cashmere-classic-tweed&#10;https://starshollowyarns.com/products/some-yarn"></textarea>
+    </label>
+    <div class="actions"><button type="submit" name="action" value="hide_list" class="danger">Hide these products</button></div>
+  </form>
+</details>
 
 <?php if (!$list): ?>
   <p class="empty">Nothing found.<?= $groups && !array_filter($groups, fn($g) => $g['rep']['meta_text'] !== null) ? ' Run a Shopify sync so tags and SEO text are saved, then look again.' : '' ?></p>
