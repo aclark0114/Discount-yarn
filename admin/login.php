@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../includes/bootstrap.php';
+require __DIR__ . '/../includes/admin_password.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 
@@ -14,10 +15,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         sleep(1);
         $user = (string)($_POST['username'] ?? '');
         $pass = (string)($_POST['password'] ?? '');
-        $hash = (string)config('admin.password_hash');
-        if (hash_equals((string)config('admin.username'), $user) && $hash !== 'CHANGE_ME' && password_verify($pass, $hash)) {
+        if (hash_equals((string)config('admin.username'), $user) && admin_password_verify($pass)) {
             session_regenerate_id(true);
             $_SESSION['admin'] = true;
+            $_SESSION['admin_pw'] = admin_password_version();
             $_SESSION['admin_seen'] = time();
             unset($_SESSION['login_fails']);
             redirect('/admin/');
@@ -33,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Admin login | <?= e(config('store_name')) ?></title>
-<link rel="stylesheet" href="/assets/admin.css?v=6">
+<link rel="stylesheet" href="/assets/admin.css?v=7">
 </head>
 <body class="login-page">
 <form class="login" method="post" action="/admin/login.php">

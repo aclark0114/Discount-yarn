@@ -9,6 +9,7 @@ PHP 8 + MySQL yarn shop on GoDaddy cPanel. Stripe Checkout (Leafwood Advisory's 
 
 ## Secrets (never commit or print)
 - The config (`/home/<user>/discount-yarn-config.php`, or `config.php` in the document root) holds the Shopify client secret and Storefront token, DB password, Stripe key, webhook secret, Postmark token and admin hash. Only `config.sample.php` (placeholders) is in the repo.
+- A changed admin password is a hash in `discount-yarn-admin.json` next to the config (`includes/admin_password.php`); always check passwords with `admin_password_verify()`, never `config('admin.password_hash')` directly.
 - `uploads/` holds product photos on the server only. The cache folder (`cache_dir`, outside public_html) holds Shopify tokens; never print or log them.
 
 ## Code conventions

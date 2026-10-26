@@ -80,7 +80,9 @@ return [
         'free_over_cents'  => 7500,
     ],
 
-    // Admin login. Generate a hash with:
+    // Admin login. After the first login you can change the password in
+    // admin > Change password; it's then kept in discount-yarn-admin.json next
+    // to this file, and deleting that file brings back this one. Generate a hash with:
     //   php -r 'echo password_hash("your-password", PASSWORD_DEFAULT), "\n";'
     'admin' => [
         'username'      => 'admin',

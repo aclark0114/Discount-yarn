@@ -65,3 +65,4 @@ code { background: #efe5d3; padding: 1px 5px; border-radius: 4px; }
 @media (max-width: 700px) { .cols, .order-cols { grid-template-columns: 1fr; } .search { flex-wrap: wrap; } }
 .campaign { word-break: break-word; }
 .campaign small { display: block; color: var(--muted, #6f645b); font-size: 12px; }
+.narrow-form { max-width: 480px; }

@@ -2,7 +2,7 @@ Options -Indexes
 DirectoryIndex index.php
 
 # Keep secrets, code-only folders and migrations off the web.
-<FilesMatch "^(config\.php|config\.sample\.php|schema.*\.sql|README\.md|CLAUDE\.md|\.cpanel\.yml|error_log)$">
+<FilesMatch "^(config\.php|config\.sample\.php|schema.*\.sql|README\.md|CLAUDE\.md|\.cpanel\.yml|error_log|shopify_token\.json|discount-yarn-.*\.json|.*\.lock|.*\.tmp)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

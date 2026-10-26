@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/shopify.php';
+require_once __DIR__ . '/../includes/admin_password.php';
 
 header('X-Robots-Tag: noindex, nofollow');
 
@@ -12,8 +13,9 @@ const ADMIN_IDLE_SECONDS = 4 * 3600;
 
 function admin_logged_in(): bool
 {
-    if (empty($_SESSION['admin']) || (time() - (int)($_SESSION['admin_seen'] ?? 0)) > ADMIN_IDLE_SECONDS) {
-        unset($_SESSION['admin'], $_SESSION['admin_seen']);
+    if (empty($_SESSION['admin']) || (time() - (int)($_SESSION['admin_seen'] ?? 0)) > ADMIN_IDLE_SECONDS
+        || ($_SESSION['admin_pw'] ?? '') !== admin_password_version()) {
+        unset($_SESSION['admin'], $_SESSION['admin_seen'], $_SESSION['admin_pw']);
         return false;
     }
     $_SESSION['admin_seen'] = time();
@@ -30,7 +32,7 @@ function admin_header(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> | <?= $store ?> admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=6">
+<link rel="stylesheet" href="/assets/admin.css?v=7">
 </head>
 <body>
 <header class="admin-bar">
@@ -47,6 +49,7 @@ function admin_header(string $title): void
     <a href="/admin/stripe.php">Stripe</a>
     <a href="/admin/site.php">Store status</a>
     <a href="/" target="_blank" rel="noopener">View store</a>
+    <a href="/admin/password.php">Change password</a>
     <a href="/admin/logout.php">Log out</a>
   </nav>
 </header>

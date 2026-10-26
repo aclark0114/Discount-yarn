@@ -106,6 +106,12 @@ Shopify supplies the catalog only: products, photos, prices and stock. Shoppers 
   2. In Postmark, add a **Broadcast** message stream to the store's server, named `broadcast` or whatever is in `postmark.broadcast_stream`.
   3. Set `mailing_address` in the config.
 
+## Admin password
+
+Admin > **Change password** asks for the current password and a new one (at least 12 characters, typed twice). The new password is saved as a hash in `discount-yarn-admin.json` next to the config, outside public_html, and from then on it's the one that works; the config's `admin.password_hash` is ignored while that file exists. Changing it logs out every other browser signed into admin. It's also the password for reconnecting Shopify.
+
+**Forgot it?** In cPanel File Manager, delete `discount-yarn-admin.json` from your home folder (next to `discount-yarn-config.php`). The password from the config works again.
+
 ## Under construction
 
 Admin > **Store status** closes the store to shoppers while you make changes, and opens it again. No deploy is needed either way.

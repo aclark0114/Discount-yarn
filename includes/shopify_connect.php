@@ -16,7 +16,7 @@ function shopify_connect_page(string $title, string $html, int $status = 200): v
     header('X-Robots-Tag: noindex, nofollow');
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<meta name="robots" content="noindex, nofollow"><title>' . e($title) . ' | ' . e(config('store_name')) . '</title>'
-        . '<link rel="stylesheet" href="/assets/admin.css?v=6"></head><body class="login-page"><div class="login">'
+        . '<link rel="stylesheet" href="/assets/admin.css?v=7"></head><body class="login-page"><div class="login">'
         . '<h1>' . e($title) . '</h1>' . $html . '</div></body></html>';
     exit;
 }
@@ -42,9 +42,9 @@ function shopify_require_unlock(bool $offerForm): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         csrf_check();
         sleep(1);
-        $hash = (string)config('admin.password_hash');
+        require_once __DIR__ . '/admin_password.php';
         $fails = (int)($_SESSION['shopify_reconnect_fails'] ?? 0);
-        if ($fails < 10 && $hash !== '' && $hash !== 'CHANGE_ME' && password_verify((string)($_POST['password'] ?? ''), $hash)) {
+        if ($fails < 10 && admin_password_verify((string)($_POST['password'] ?? ''))) {
             unset($_SESSION['shopify_reconnect_fails']);
             $_SESSION['shopify_reconnect_until'] = time() + SHOPIFY_RECONNECT_WINDOW;
             return;
