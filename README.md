@@ -14,9 +14,10 @@ A small PHP + MySQL yarn shop for GoDaddy cPanel. Shoppers browse, fill a cart, 
 | `includes/` | Config, DB, cart, Stripe and Postmark clients (no Composer needed) |
 | `cron/expire_pending.php` | Daily cleanup of checkouts that never paid, and of visitor data older than 180 days |
 | `track.php`, `includes/activity.php`, `admin/visitors.php` | First-party visitor activity and the admin Visitors page |
+| `includes/geoip.php`, `cron/geo_update.php` | Visitor locations: a small reader for the DB-IP city database, and the monthly download of it |
 | `cron/shopify_sync.php`, `includes/shopify_sync.php` | Copies the Shopify catalog into the products table (every 15 minutes) |
 | `includes/shopify.php`, `cron/shopify_check.php`, `admin/shopify.php` | Shopify login, token caching, connection test, Sync now |
-| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql`, `schema_v7_email.sql`, `schema_v8_consent.sql`, `schema_v9_hide.sql` | Database tables, run once each in phpMyAdmin, in order |
+| `schema.sql`, `schema_v2_shopify.sql`, `schema_v3_pricing_groups.sql`, `schema_v4_images.sql`, `schema_v5_visitors.sql`, `schema_v6_categories.sql`, `schema_v7_email.sql`, `schema_v8_consent.sql`, `schema_v9_hide.sql`, `schema_v10_geo.sql` | Database tables, run once each in phpMyAdmin, in order |
 | `admin/pricing.php`, `includes/pricing.php` | Discount tiers for Shopify yarn |
 | `includes/catalog.php` | Grouped catalog: one card and one page per product, with a colorway picker |
 | `config.sample.php` | Template for `config.php` (server only, never committed) |
@@ -156,6 +157,16 @@ How it works:
 - **Privacy:** no IP addresses or tracking cookies are stored. A visitor is an anonymous ID that changes daily, so "visitors" means people per day. Data older than 180 days is deleted by the daily cron.
 - **Setup:** run `schema_v5_visitors.sql` in phpMyAdmin first. Until then, the page says so.
 - **Time zone:** times use `timezone` from the config (default `America/New_York`).
+
+## Visitor locations
+
+`/admin/visitors.php` also shows where visitors are, for the selected range: **Countries**, the top 10 **States and regions**, the top 10 **Cities** (each counting visitors, not page views), plus a **Where** column in Recent activity. Visitors whose location can't be found are grouped as Unknown.
+
+- **Setup:** run `schema_v10_geo.sql` in phpMyAdmin. Until then the page says so, and visitor logging keeps working without locations.
+- **Download the database.** Add a cron job once a month: `php -q /home/xwy78w88pv1w/public_html/discount-yarn.com/cron/geo_update.php`. Then run it once by hand: in cPanel > Cron Jobs set it to run in a minute, check that the Visitors page no longer says "Location lookup starts once cron/geo_update.php has run", and change the schedule back to monthly (or run the command in cPanel Terminal). It downloads DB-IP's free "IP to City Lite" file into `cache_dir` (outside public_html, as `dbip-city-lite.mmdb`, or wherever the optional `geoip_db` setting points), checks it, and only then replaces the old copy. If this month's file isn't published yet it uses last month's. A failed run leaves the current file alone and prints why.
+- **Only new visits get a location.** Events recorded before the database was installed stay Unknown.
+- **Privacy:** the IP address is looked up while the page view is recorded and is never stored. Only country, region and city are kept, and they're deleted with the rest of the visitor data after 180 days.
+- **Credit:** IP geolocation by [DB-IP](https://db-ip.com), licensed CC BY 4.0. The credit is shown on the Visitors page.
 
 ## Adding inventory
 

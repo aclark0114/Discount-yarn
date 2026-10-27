@@ -32,7 +32,7 @@ function admin_header(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> | <?= $store ?> admin</title>
-<link rel="stylesheet" href="/assets/admin.css?v=12">
+<link rel="stylesheet" href="/assets/admin.css?v=14">
 </head>
 <body>
 <header class="admin-bar">

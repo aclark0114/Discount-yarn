@@ -29,6 +29,10 @@ return [
     // Tokens and the catalog cache. Must be writable and outside public_html.
     'cache_dir' => __DIR__ . '/discount-yarn-cache',
 
+    // Optional: where cron/geo_update.php keeps the DB-IP city database used for
+    // visitor locations. Leave unset to use dbip-city-lite.mmdb inside cache_dir.
+    // 'geoip_db' => __DIR__ . '/discount-yarn-cache/dbip-city-lite.mmdb',
+
     // Store identity
     'store_name'    => 'Discount Yarn',
     'tagline'       => 'Good yarn. Better prices.',

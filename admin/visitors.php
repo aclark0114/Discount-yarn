@@ -51,7 +51,18 @@ try {
                        WHERE c.event = 'view' AND c.utm_source IS NOT NULL AND c.created_at >= ?
                        GROUP BY c.utm_source, c.utm_medium, c.utm_campaign ORDER BY v DESC LIMIT 10", [$since]);
     $devices   = $all("SELECT device, COUNT(DISTINCT visitor) AS v FROM site_events WHERE event = 'view' AND created_at >= ? GROUP BY device ORDER BY v DESC", [$since]);
-    $recent    = $all('SELECT created_at, visitor, event, path, product, value_cents, referrer_host, device FROM site_events ORDER BY id DESC LIMIT 40');
+    $hasGeo    = activity_has_geo();
+    $recent    = $all('SELECT created_at, visitor, event, path, product, value_cents, referrer_host, device' . ($hasGeo ? ', country, region, city' : '') . ' FROM site_events ORDER BY id DESC LIMIT 40');
+    $countries = $regions = $cities = [];
+    if ($hasGeo) {
+        // One count per visitor; visitors with no known location are "Unknown".
+        $countries = $all("SELECT country, COUNT(DISTINCT visitor) AS v FROM site_events
+                           WHERE event = 'view' AND created_at >= ? GROUP BY country ORDER BY v DESC", [$since]);
+        $regions   = $all("SELECT region, country, COUNT(DISTINCT visitor) AS v FROM site_events
+                           WHERE event = 'view' AND region IS NOT NULL AND created_at >= ? GROUP BY region, country ORDER BY v DESC LIMIT 10", [$since]);
+        $cities    = $all("SELECT city, region, country, COUNT(DISTINCT visitor) AS v FROM site_events
+                           WHERE event = 'view' AND city IS NOT NULL AND created_at >= ? GROUP BY city, region, country ORDER BY v DESC LIMIT 10", [$since]);
+    }
     $orders    = $all("SELECT COUNT(*) AS n, COALESCE(SUM(total_cents), 0) AS total FROM orders WHERE status IN ('paid', 'shipped') AND paid_at >= ?", [$since])[0];
     $error = '';
 } catch (PDOException $ex) {
@@ -95,6 +106,7 @@ admin_header('Visitors');
         $chart[$d] = (int)($byDay[$d]['v'] ?? 0);
     }
     $peak = max(1, max($chart));
+    $where = fn(array $r) => implode(', ', array_filter([$r['city'] ?? '', $r['region'] ?? '', $r['country'] ?? ''], fn($x) => trim((string)$x) !== ''));
     $eventLabels = ['view' => 'Viewed', 'add_to_cart' => 'Added to cart', 'checkout' => 'Started checkout'];
 ?>
   <div class="stats">
@@ -191,10 +203,52 @@ admin_header('Visitors');
     </section>
   </div>
 
+  <h2>Where visitors are</h2>
+  <?php if (!$hasGeo): ?>
+    <p class="empty">Locations aren't set up yet. Run schema_v10_geo.sql in phpMyAdmin.</p>
+  <?php else: ?>
+    <?php if (!geo_db_exists()): ?>
+      <p class="empty">Location lookup starts once cron/geo_update.php has run.</p>
+    <?php endif; ?>
+    <?php if (!$countries || (count($countries) === 1 && $countries[0]['country'] === null)): ?>
+      <p class="empty">No visitor locations yet. They appear for new visits once the location database is installed.</p>
+    <?php else: ?>
+    <h3>Countries</h3>
+    <div class="table-wrap"><table>
+      <tbody>
+      <?php foreach (array_slice($countries, 0, 15) as $r): ?>
+        <tr><td><?= $r['country'] === null ? 'Unknown' : e(geo_country_name($r['country'])) . ' <small>(' . e($r['country']) . ')</small>' ?></td><td><?= (int)$r['v'] ?></td><td><?= $pct((int)$r['v'], $visitors) ?></td></tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php if ($regions): ?>
+    <h3>States and regions</h3>
+    <div class="table-wrap"><table>
+      <tbody>
+      <?php foreach ($regions as $r): ?>
+        <tr><td><?= e($r['region']) ?><?= $r['country'] ? ' <small>(' . e($r['country']) . ')</small>' : '' ?></td><td><?= (int)$r['v'] ?></td></tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php endif; ?>
+    <?php if ($cities): ?>
+    <h3>Cities</h3>
+    <div class="table-wrap"><table>
+      <tbody>
+      <?php foreach ($cities as $r): ?>
+        <tr><td><?= e($where($r)) ?></td><td><?= (int)$r['v'] ?></td></tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php endif; ?>
+    <?php endif; ?>
+    <p class="muted-note">Visitors per place, from the visitor's IP address when they arrive. Only the country, region and city are kept, never the IP. IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noopener">DB-IP</a>.</p>
+  <?php endif; ?>
+
   <h2>Recent activity</h2>
   <?php if (!$recent): ?><p class="empty">Nothing yet. Activity appears here as people browse the store.</p><?php else: ?>
   <div class="table-wrap"><table>
-    <thead><tr><th>Time</th><th>Visitor</th><th>Activity</th><th>From</th><th>Device</th></tr></thead>
+    <thead><tr><th>Time</th><th>Visitor</th><th>Activity</th><th>From</th><?php if ($hasGeo): ?><th class="wide-only">Where</th><?php endif; ?><th>Device</th></tr></thead>
     <tbody>
     <?php foreach ($recent as $r): ?>
       <tr>
@@ -202,8 +256,10 @@ admin_header('Visitors');
         <td><code title="Anonymous, changes daily"><?= e(substr($r['visitor'], 0, 6)) ?></code></td>
         <td><?= e($eventLabels[$r['event']] ?? $r['event']) ?>
           <?= $r['product'] ? e($pname($r['product'])) : e($r['path']) ?>
-          <?= $r['value_cents'] !== null ? '(' . money((int)$r['value_cents']) . ')' : '' ?></td>
+          <?= $r['value_cents'] !== null ? '(' . money((int)$r['value_cents']) . ')' : '' ?>
+          <?php if ($hasGeo && $where($r) !== ''): ?><small class="narrow-only"><?= e($where($r)) ?></small><?php endif; ?></td>
         <td><?= e($r['referrer_host'] ?? '') ?></td>
+        <?php if ($hasGeo): ?><td class="wide-only"><?= e($where($r)) ?></td><?php endif; ?>
         <td><?= e($r['device']) ?></td>
       </tr>
     <?php endforeach; ?>

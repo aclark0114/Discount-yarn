@@ -13,6 +13,7 @@ uploads/*
 error_log
 *.bak
 *.zip
+*.mmdb
 .DS_Store
 shopify_token.json
 discount-yarn-*.json

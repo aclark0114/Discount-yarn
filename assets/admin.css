@@ -10,6 +10,9 @@ a { color: var(--green); }
 .head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 h1 { font-size: 1.6rem; margin: 0 0 12px; }
 h2 { font-size: 1.1rem; }
+small.narrow-only { display: none; }
+@media (max-width: 700px) { .wide-only { display: none; } small.narrow-only { display: block; color: var(--muted); } }
+h3 { font-size: .95rem; margin: 16px 0 6px; color: var(--muted); }
 .notice { background: #e8f0ec; border-left: 3px solid var(--green); padding: 10px 14px; border-radius: var(--r); }
 .error { background: #f8e8e8; border-left: 3px solid var(--red); padding: 10px 14px; border-radius: var(--r); }
 .error-list { color: var(--red); }

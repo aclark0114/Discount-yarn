@@ -25,6 +25,7 @@ PHP 8 + MySQL yarn shop on GoDaddy cPanel. Stripe Checkout (Leafwood Advisory's 
 - Checkout is Stripe Embedded Checkout (`ui_mode=embedded`, `assets/checkout.js`) when `stripe.publishable_key` is set, Stripe-hosted otherwise. Checkout Sessions carry `metadata.store = discount-yarn`; the webhook ignores sessions without it because the Stripe account is shared with Leafwood.
 - Schema changes go in a new `schema_vN_*.sql` file run by hand in phpMyAdmin. SQL in pages must also run on SQLite (used for local testing).
 - Visitor activity goes through `activity_log()` (includes/activity.php), which never throws and skips bots and admins. Never store IP addresses; the visitor id is a daily hash.
+- Visitor location: `geo_lookup()` (includes/geoip.php, pure-PHP reader for the DB-IP .mmdb that `cron/geo_update.php` downloads into `cache_dir`) turns REMOTE_ADDR into country, region and city, which `activity_log()` stores when the schema_v10 columns exist. Only those three are stored, never the IP. Keep the DB-IP credit on admin/visitors.php.
 - Cron scripts run under `php -q` and exit if called over the web (see `cron/expire_pending.php`).
 - Bump `ASSET_VERSION` in `includes/layout.php` when `assets/styles.css` or `assets/script.js` changes.
 
