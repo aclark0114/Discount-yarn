@@ -171,27 +171,30 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         $weight = '';   // keeps books and bags out of the weight pages
     }
 
+    // Shopify SKU if it has one, otherwise Shopify's variant number.
+    $usedByOther = function (string $s) use ($variant): bool {
+        $other = product_by_sku($s);
+        return $other && (string)$other['shopify_variant_id'] !== (string)$variant['id'];
+    };
     $sku = trim((string)$variant['sku']);
-    $fallback = 'SH-' . preg_replace('/\D/', '', (string)$variant['id']);
-    if ($sku === '') {
-        $sku = $fallback;
-    } else {
-        $other = product_by_sku($sku);
-        if ($other && (string)$other['shopify_variant_id'] !== (string)$variant['id']) {
-            $sku = $fallback;  // SKU already used by another row
-        }
+    $fallback = preg_replace('/\D/', '', (string)$variant['id']);
+    if ($fallback !== '' && $usedByOther($fallback)) {
+        $fallback .= '-1';   // a typed-in SKU already uses this number
+    }
+    if ($sku === '' || $usedByOther($sku)) {
+        $sku = $fallback;  // no SKU, or it is already used by another row
     }
 
     return [
         'sku'                => mb_substr($sku, 0, 64),
-        'name'               => mb_substr((string)$product['title'], 0, 200),
+        'name'               => mb_substr(shopify_retired_split((string)$product['title'])[0], 0, 200),
         'brand'              => mb_substr((string)$product['vendor'], 0, 120),
         'weight'             => $weight,
         'category'           => $category,
         'product_type'       => mb_substr((string)($product['productType'] ?? ''), 0, 120),
         'fiber'              => mb_substr(shopify_guess_fiber($product, $variant), 0, 160),
         'colorway'           => mb_substr($colorway, 0, 120),
-        'description'        => (string)($product['description'] ?? ''),
+        'description'        => shopify_clean_description($product)[0],
         'meta_text'          => shopify_meta_text($product),
         'price_cents'        => $regular,
         'sale_price_cents'   => $sale,
@@ -204,8 +207,49 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         'shopify_price_cents'       => $price,
         'shopify_compare_cents'     => $compare,
         'shopify_inventory_item_id' => isset($variant['inventoryItem']['id']) ? (string)$variant['inventoryItem']['id'] : null,
-        'group_slug'                => mb_substr(slugify((string)($product['handle'] ?? $product['title'] ?? '')), 0, 160),
+        'group_slug'                => mb_substr(shopify_group_slug($product), 0, 160),
     ];
+}
+
+// "Tov (Retired Colors)" -> ["Tov", true]. Shopify keeps retired colorways
+// as a separate product; this site shows them as colorways of the regular one.
+function shopify_retired_split(string $title): array
+{
+    $base = trim((string)preg_replace('/\s*[(\[]?\s*[-–—:]?\s*retired\s+colou?r(?:way)?s?\s*[)\]]?\s*$/iu', '', $title));
+    return $base !== '' && $base !== trim($title) ? [$base, true] : [$title, false];
+}
+
+// The product page a Shopify product's colorways go on: its own handle, or
+// for "X (Retired Colors)" the page of the regular product X with the same
+// brand (found among rows saved by earlier syncs). Without a regular X the
+// retired product keeps its own page, named X.
+function shopify_group_slug(array $product): string
+{
+    $own = slugify((string)($product['handle'] ?? $product['title'] ?? ''));
+    [$base, $retired] = shopify_retired_split((string)($product['title'] ?? ''));
+    if (!$retired) {
+        return $own;
+    }
+    static $byName = null;
+    if ($byName === null) {
+        $byName = [];
+        foreach (db()->query('SELECT shopify_product_id, name, brand, group_slug FROM products WHERE shopify_product_id IS NOT NULL ORDER BY id') as $r) {
+            $byName[mb_strtolower(trim((string)$r['name']))][(string)$r['shopify_product_id']] = [mb_strtolower(trim((string)$r['brand'])), (string)$r['group_slug']];
+        }
+    }
+    $brand = mb_strtolower(trim((string)($product['vendor'] ?? '')));
+    $any = [];
+    foreach ($byName[mb_strtolower($base)] ?? [] as $pid => [$rowBrand, $group]) {
+        if ($pid === (string)($product['id'] ?? '') || $group === '') {
+            continue;
+        }
+        if ($rowBrand === $brand) {
+            return $group;
+        }
+        $any[$group] = true;
+    }
+    // Same name, other brand: only when there is exactly one such page.
+    return count($any) === 1 ? (string)array_key_first($any) : $own;
 }
 
 // Replaces a product's gallery with its current Shopify photos. Returns how many.
@@ -372,7 +416,7 @@ function shopify_sync_catalog(): array
           products(first: ' . SHOPIFY_SYNC_PAGE . ', after: $cursor) {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id title handle vendor productType tags description createdAt seo { title description }
+              id title handle vendor productType tags description descriptionHtml createdAt seo { title description }
               featuredImage { url }
               images(first: ' . SHOPIFY_SYNC_IMAGES . ') { nodes { url altText } }
               variants(first: ' . SHOPIFY_SYNC_VARIANTS . ') {
@@ -385,7 +429,7 @@ function shopify_sync_catalog(): array
           products(first: ' . SHOPIFY_SYNC_PAGE . ', after: $cursor, query: "status:active") {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id title handle vendor productType tags description createdAt seo { title description }
+              id title handle vendor productType tags description descriptionHtml createdAt seo { title description }
               featuredMedia { preview { image { url } } }
               media(first: ' . SHOPIFY_SYNC_IMAGES . ') { nodes { ... on MediaImage { image { url altText } } } }
               variants(first: ' . SHOPIFY_SYNC_VARIANTS . ') {
@@ -470,11 +514,113 @@ function shopify_sync_catalog(): array
     });
 }
 
+// True when text names Ravelry or Stars Hollow (also StarsHollow,
+// starshollowyarns.com and "SHY"). Lines like that are never shown here.
+function shopify_text_blocked(string $text): bool
+{
+    return (bool)preg_match("/ravelry|stars['’]?[\\W_]*hollow/iu", $text) || (bool)preg_match('/\bSHY\b/u', $text);
+}
+
+function shopify_plain_text(string $html): string
+{
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return trim((string)preg_replace('/\s+/u', ' ', str_replace("\u{00A0}", ' ', $text)));
+}
+
+// Drops the sentences of $text that contain $mark (a removed "click here"
+// link). A line that starts with the link goes entirely (abbreviations like
+// "Co." would otherwise leave a fragment), and so does a question left
+// without its answer ("Looking for skein sets? Click here!"). Returns what
+// is left, and adds what was dropped to $removed.
+function shopify_drop_marked_sentences(string $text, string $mark, array &$removed): string
+{
+    $sentences = preg_split('/(?<=[.!?])\s+/u', $text) ?: [];
+    if ($sentences && str_contains($sentences[0], $mark)) {
+        $removed[] = trim(str_replace($mark, 'here', $text));
+        return '';
+    }
+    $keep = [];
+    foreach ($sentences as $sentence) {
+        if (str_contains($sentence, $mark)) {
+            $removed[] = trim(str_replace($mark, 'here', $sentence));
+        } else {
+            $keep[] = $sentence;
+        }
+    }
+    $left = trim(implode(' ', $keep));
+    if (str_ends_with($left, '?')) {
+        $removed[] = $left;
+        return '';
+    }
+    return $left;
+}
+
+// Shopify's description as plain text, one line per paragraph or line
+// break. Returns [text, removed text]. Runs on every sync, so nothing
+// removed here comes back from Shopify:
+// - a line whose words name Ravelry or Stars Hollow is dropped;
+// - a "click here" link to ravelry.com or starshollowyarns.com takes its
+//   sentence with it, and "(pattern previews)" style links are dropped;
+// - other links to those sites keep their words (the page shows plain
+//   text, so the link itself never appears).
+function shopify_clean_description(array $product): array
+{
+    $mark = "\u{E000}";
+    $removed = [];
+    $html = (string)($product['descriptionHtml'] ?? '');
+    if (trim($html) === '') {
+        // No HTML: Shopify's plain text runs paragraphs together, so drop
+        // whole sentences instead of lines.
+        $keep = [];
+        foreach (preg_split('/(?<=[.!?])\s+/u', (string)($product['description'] ?? '')) ?: [] as $sentence) {
+            if (shopify_text_blocked($sentence)) {
+                $removed[] = trim($sentence);
+            } elseif (trim($sentence) !== '') {
+                $keep[] = trim($sentence);
+            }
+        }
+        return [implode(' ', $keep), $removed];
+    }
+    $html = (string)preg_replace('~<br\s*/?>|</(?:p|div|li|h[1-6]|tr|blockquote)\s*>|<li\b[^>]*>~i', "\n", $html);
+    $keep = [];
+    foreach (explode("\n", $html) as $segment) {
+        $text = shopify_plain_text($segment);
+        if ($text === '') {
+            continue;
+        }
+        if (shopify_text_blocked($text)) {
+            $removed[] = $text;
+            continue;
+        }
+        $segment = (string)preg_replace_callback('~<a\b([^>]*)>(.*?)</a>~is', function ($m) use ($mark) {
+            if (!preg_match('/href\s*=\s*["\']?[^"\'>]*(ravelry|stars[\W_]*hollow)/i', html_entity_decode($m[1]))) {
+                return $m[2];
+            }
+            $words = shopify_plain_text($m[2]);
+            if (preg_match('/\b(click(ing)?\s+)?here\b/i', $words)) {
+                return $mark;
+            }
+            return preg_match('/^((full|more|all)\s+)?(pattern\s+)?(previews?|patterns?)$/i', $words) ? '' : $m[2];
+        }, $segment);
+        $text = shopify_plain_text($segment);
+        $text = trim((string)preg_replace('/\s*\(\s*\)/u', '', $text));
+        if (str_contains($text, $mark)) {
+            $text = shopify_drop_marked_sentences($text, $mark, $removed);
+        }
+        if ($text !== '') {
+            $keep[] = $text;
+        }
+    }
+    return [implode("\n", $keep), $removed];
+}
+
 // Shopify text that isn't shown on the product page: tags, SEO title and
-// description, and photo alt text. Kept so admin can search it.
+// description, photo alt text and the description lines taken out by
+// shopify_clean_description(). Kept so admin can search it.
 function shopify_meta_text(array $product): string
 {
     $parts = [implode(', ', (array)($product['tags'] ?? [])), $product['seo']['title'] ?? '', $product['seo']['description'] ?? ''];
+    $parts = array_merge($parts, shopify_clean_description($product)[1]);
     foreach ((array)($product['media']['nodes'] ?? []) as $m) {
         $parts[] = $m['image']['altText'] ?? '';
     }

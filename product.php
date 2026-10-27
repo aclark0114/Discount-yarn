@@ -18,6 +18,17 @@ if (!$variants) {
     }
 }
 
+// An old "tov-retired-colors" link: those colorways now sit on the regular
+// product's page (see shopify_group_slug()), so send it there.
+if (!$variants && preg_match('/^(.+?)-retired-colou?rs?(?:-\d+)?$/', $slug, $m)) {
+    foreach (db()->query('SELECT name, group_slug FROM products WHERE is_active = 1 ORDER BY id') as $row) {
+        if (slugify((string)$row['name']) === $m[1] && (string)$row['group_slug'] !== '') {
+            header('Location: ' . group_url((string)$row['group_slug']), true, 301);
+            exit;
+        }
+    }
+}
+
 if (!$variants) {
     http_response_code(404);
     page_header('Not found');
@@ -58,11 +69,31 @@ $off = percent_off($p);
 $inCart = (int)($cart[$p['id']] ?? 0);
 
 // Every Shopify photo of this product, for the gallery under the main photo.
+// A page can hold more than one Shopify product ("Tov" and "Tov (Retired
+// Colors)"), so photos come from each, the selected colorway's first.
 $gallery = [];
-if (!empty($p['shopify_product_id'])) {
+$shopifyIds = array_values(array_unique(array_filter(array_map(fn($v) => (string)$v['shopify_product_id'], [$p, ...$variants]))));
+if ($shopifyIds) {
     $st = db()->prepare('SELECT url, alt_text FROM product_images WHERE shopify_product_id = ? ORDER BY position');
-    $st->execute([$p['shopify_product_id']]);
-    $gallery = $st->fetchAll();
+    $seenUrls = [];
+    foreach ($shopifyIds as $sid) {
+        $st->execute([$sid]);
+        foreach ($st->fetchAll() as $img) {
+            if (!isset($seenUrls[$img['url']])) {
+                $seenUrls[$img['url']] = true;
+                $gallery[] = $img;
+            }
+        }
+    }
+}
+
+// The description shown: the fullest one on the page, so it doesn't change
+// with the colorway that happens to load first.
+$description = (string)$p['description'];
+foreach ($variants as $v) {
+    if (mb_strlen(trim((string)$v['description'])) > mb_strlen(trim($description))) {
+        $description = (string)$v['description'];
+    }
 }
 
 $related = catalog_groups(['is_active = 1', 'stock > 0', 'group_slug <> ?', '(brand = ? OR weight = ?)'], [$slug, $p['brand'], $p['weight']], 'random', 4);
@@ -77,7 +108,7 @@ $specs = array_filter([
 
 $prices = array_map('effective_price', $variants);
 $canonical = url(group_url($slug));
-page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['name'] . ' yarn at discount prices.', 0, 155), '', $canonical);
+page_header($p['name'], mb_substr(trim((string)preg_replace('/\s+/u', ' ', strip_tags($description))) ?:$p['name'] . ' yarn at discount prices.', 0, 155), '', $canonical);
 ?>
 <div class="wrap section product">
   <nav class="crumbs" aria-label="Breadcrumb"><a href="/shop.php">Shop</a>
@@ -151,8 +182,8 @@ page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['n
         <p class="stock stock-out">Sold out</p>
       <?php endif; ?>
 
-      <?php if (trim((string)$p['description']) !== ''): ?>
-        <div class="desc"><?= nl2br(e($p['description'])) ?></div>
+      <?php if (trim($description) !== ''): ?>
+        <div class="desc"><?= nl2br(e($description)) ?></div>
       <?php endif; ?>
 
       <dl class="specs">
