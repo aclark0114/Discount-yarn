@@ -171,15 +171,18 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         $weight = '';   // keeps books and bags out of the weight pages
     }
 
+    // Shopify SKU if it has one, otherwise Shopify's variant number.
+    $usedByOther = function (string $s) use ($variant): bool {
+        $other = product_by_sku($s);
+        return $other && (string)$other['shopify_variant_id'] !== (string)$variant['id'];
+    };
     $sku = trim((string)$variant['sku']);
-    $fallback = 'SH-' . preg_replace('/\D/', '', (string)$variant['id']);
-    if ($sku === '') {
-        $sku = $fallback;
-    } else {
-        $other = product_by_sku($sku);
-        if ($other && (string)$other['shopify_variant_id'] !== (string)$variant['id']) {
-            $sku = $fallback;  // SKU already used by another row
-        }
+    $fallback = preg_replace('/\D/', '', (string)$variant['id']);
+    if ($fallback !== '' && $usedByOther($fallback)) {
+        $fallback .= '-1';   // a typed-in SKU already uses this number
+    }
+    if ($sku === '' || $usedByOther($sku)) {
+        $sku = $fallback;  // no SKU, or it is already used by another row
     }
 
     return [
