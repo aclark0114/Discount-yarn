@@ -33,14 +33,16 @@ foreach (db()->query('SELECT * FROM products ORDER BY name, colorway, id') as $p
     if (!empty($p['image_url']) || !empty($p['image'])) {
         $g['photos'][product_image($p, 1600)] = [product_image($p, 240), $p['colorway'] !== '' ? $p['colorway'] : 'Main photo'];
     }
-    $g['shopify'] = (string)$p['shopify_product_id'];
+    if ((string)$p['shopify_product_id'] !== '') {
+        $g['shopify'][(string)$p['shopify_product_id']] = true;   // a page can hold more than one Shopify product
+    }
     unset($g);
 }
 // Shopify gallery photos, keyed by Shopify product.
 $byShopify = [];
 foreach ($groups as $key => $g) {
-    if ($g['shopify'] !== '') {
-        $byShopify[$g['shopify']] = $key;
+    foreach (array_keys($g['shopify'] ?? []) as $sid) {
+        $byShopify[(string)$sid] = $key;
     }
 }
 try {

@@ -184,7 +184,7 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
 
     return [
         'sku'                => mb_substr($sku, 0, 64),
-        'name'               => mb_substr((string)$product['title'], 0, 200),
+        'name'               => mb_substr(shopify_retired_split((string)$product['title'])[0], 0, 200),
         'brand'              => mb_substr((string)$product['vendor'], 0, 120),
         'weight'             => $weight,
         'category'           => $category,
@@ -204,8 +204,49 @@ function shopify_variant_row(array $product, array $variant, int $heldBack): arr
         'shopify_price_cents'       => $price,
         'shopify_compare_cents'     => $compare,
         'shopify_inventory_item_id' => isset($variant['inventoryItem']['id']) ? (string)$variant['inventoryItem']['id'] : null,
-        'group_slug'                => mb_substr(slugify((string)($product['handle'] ?? $product['title'] ?? '')), 0, 160),
+        'group_slug'                => mb_substr(shopify_group_slug($product), 0, 160),
     ];
+}
+
+// "Tov (Retired Colors)" -> ["Tov", true]. Shopify keeps retired colorways
+// as a separate product; this site shows them as colorways of the regular one.
+function shopify_retired_split(string $title): array
+{
+    $base = trim((string)preg_replace('/\s*[(\[]?\s*[-–—:]?\s*retired\s+colou?r(?:way)?s?\s*[)\]]?\s*$/iu', '', $title));
+    return $base !== '' && $base !== trim($title) ? [$base, true] : [$title, false];
+}
+
+// The product page a Shopify product's colorways go on: its own handle, or
+// for "X (Retired Colors)" the page of the regular product X with the same
+// brand (found among rows saved by earlier syncs). Without a regular X the
+// retired product keeps its own page, named X.
+function shopify_group_slug(array $product): string
+{
+    $own = slugify((string)($product['handle'] ?? $product['title'] ?? ''));
+    [$base, $retired] = shopify_retired_split((string)($product['title'] ?? ''));
+    if (!$retired) {
+        return $own;
+    }
+    static $byName = null;
+    if ($byName === null) {
+        $byName = [];
+        foreach (db()->query('SELECT shopify_product_id, name, brand, group_slug FROM products WHERE shopify_product_id IS NOT NULL ORDER BY id') as $r) {
+            $byName[mb_strtolower(trim((string)$r['name']))][(string)$r['shopify_product_id']] = [mb_strtolower(trim((string)$r['brand'])), (string)$r['group_slug']];
+        }
+    }
+    $brand = mb_strtolower(trim((string)($product['vendor'] ?? '')));
+    $any = [];
+    foreach ($byName[mb_strtolower($base)] ?? [] as $pid => [$rowBrand, $group]) {
+        if ($pid === (string)($product['id'] ?? '') || $group === '') {
+            continue;
+        }
+        if ($rowBrand === $brand) {
+            return $group;
+        }
+        $any[$group] = true;
+    }
+    // Same name, other brand: only when there is exactly one such page.
+    return count($any) === 1 ? (string)array_key_first($any) : $own;
 }
 
 // Replaces a product's gallery with its current Shopify photos. Returns how many.
