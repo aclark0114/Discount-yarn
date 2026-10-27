@@ -77,7 +77,7 @@ $specs = array_filter([
 
 $prices = array_map('effective_price', $variants);
 $canonical = url(group_url($slug));
-page_header($p['name'], mb_substr(strip_tags((string)$p['description']) ?: $p['name'] . ' yarn at discount prices.', 0, 155), '', $canonical);
+page_header($p['name'], mb_substr(trim((string)preg_replace('/\s+/u', ' ', strip_tags((string)$p['description']))) ?:$p['name'] . ' yarn at discount prices.', 0, 155), '', $canonical);
 ?>
 <div class="wrap section product">
   <nav class="crumbs" aria-label="Breadcrumb"><a href="/shop.php">Shop</a>

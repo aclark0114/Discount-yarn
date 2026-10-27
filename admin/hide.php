@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $words = preg_split('/\s+/', str_replace(["'", '’'], '', $phrase), -1, PREG_SPLIT_NO_EMPTY);
 $wordRe = fn($w) => implode("['’]?", array_map(fn($c) => preg_quote($c, '/'), mb_str_split($w)));
 $re = $words ? '/' . implode('[\W_]*', array_map($wordRe, $words)) . '/iu' : null;
-$fields = ['name' => 'Name', 'brand' => 'Brand', 'colorway' => 'Colorway', 'product_type' => 'Type', 'description' => 'Description', 'meta_text' => 'Tags, SEO or photo text'];
+$fields = ['name' => 'Name', 'brand' => 'Brand', 'colorway' => 'Colorway', 'product_type' => 'Type', 'description' => 'Description', 'meta_text' => 'Tags, SEO, photo text or removed description lines'];
 
 $groups = [];
 foreach (db()->query('SELECT * FROM products ORDER BY name, colorway, id') as $p) {
