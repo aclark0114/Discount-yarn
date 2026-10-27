@@ -122,6 +122,11 @@ Admin > **Change password** asks for the current password and a new one (at leas
 
 **Forgot it?** In cPanel File Manager, delete `discount-yarn-admin.json` from your home folder (next to `discount-yarn-config.php`). The password from the config works again.
 
+## Contact page and order emails
+
+- **Contact page** (`/contact.php`, linked from About and the footer): name, email, optional shop name and phone, a topic and a message. The message goes to `support_email` (hello@), and replying to it answers the sender directly. The sender gets a short confirmation that doesn't repeat their message. `contact.php?topic=sell` opens it set to "Selling yarn", which the About page's section for yarn shops links to. A hidden bot trap and a limit of 5 messages an hour per visitor keep spam down. It stays open while the store is under construction.
+- **Order emails:** when an order is paid, the customer gets their confirmation and `owner_email` (orders@) gets a packing email with the shipping address, customer name and email, every item with quantity, SKU and price, and the totals. Replying to it writes to the customer.
+
 ## Under construction
 
 Admin > **Store status** closes the store to shoppers while you make changes, and opens it again. No deploy is needed either way.

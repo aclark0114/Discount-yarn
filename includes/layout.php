@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cart.php';
 
-const ASSET_VERSION = '12';
+const ASSET_VERSION = '13';
 
 // Yarn weights that have live yarn, in the usual thin-to-thick order.
 function nav_weights(): array
@@ -131,6 +131,8 @@ function page_footer(): void
     </div>
     <div>
       <h2>Help</h2>
+      <a href="/contact.php">Contact us</a>
+      <a href="/contact.php?topic=sell">Shops: sell us your yarn</a>
       <a href="/shipping.php">Shipping and returns</a>
       <a href="mailto:<?= e(config('support_email')) ?>"><?= e(config('support_email')) ?></a>
     </div>

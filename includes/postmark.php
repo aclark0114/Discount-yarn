@@ -3,7 +3,9 @@
 
 declare(strict_types=1);
 
-function postmark_send(string $to, string $subject, string $html, string $text, ?string $tag = null): bool
+// $replyTo overrides the usual reply address (support_email), for example so
+// replying to a contact form message goes to the person who sent it.
+function postmark_send(string $to, string $subject, string $html, string $text, ?string $tag = null, ?string $replyTo = null): bool
 {
     $token = (string)config('postmark.server_token');
     if ($token === '' || $token === 'CHANGE_ME') {
@@ -13,7 +15,7 @@ function postmark_send(string $to, string $subject, string $html, string $text, 
     $payload = [
         'From'          => config('postmark.from'),
         'To'            => $to,
-        'ReplyTo'       => config('support_email'),
+        'ReplyTo'       => $replyTo ?: config('support_email'),
         'Subject'       => $subject,
         'HtmlBody'      => $html,
         'TextBody'      => $text,
@@ -181,15 +183,54 @@ function send_order_confirmation(array $order): void
     $text = "Hi $name,\n\nThanks for your order #$ref. We will email you again when it ships.\n\n$tableText";
     postmark_send((string)$order['email'], 'Your ' . config('store_name') . ' order #' . $ref, $html, $text, 'order-confirmation');
 
+    send_order_owner_notice($order);
+}
+
+// The packing email to owner_email (orders@): who ordered, where it ships,
+// each item with its SKU, and the totals. Replying goes to the customer.
+function send_order_owner_notice(array $order): bool
+{
     $owner = (string)config('owner_email');
-    if ($owner !== '') {
-        $flag = (int)$order['oversold'] ? '<p style="color:#9b2c2c"><strong>Heads up:</strong> at least one item was oversold. Check stock before packing.</p>' : '';
-        $adminHtml = email_wrap('New order #' . $ref,
-            '<p>' . e($order['name']) . ' &lt;' . e($order['email']) . '&gt;</p>' . $flag . $tableHtml
-            . '<p><a href="' . e(url('admin/order.php?id=' . (int)$order['id'])) . '">Open in admin</a></p>');
-        postmark_send($owner, 'New order #' . $ref . ' (' . money((int)$order['total_cents']) . ')', $adminHtml,
-            "New order #$ref from {$order['name']} <{$order['email']}>\n\n$tableText", 'order-owner');
+    if ($owner === '') {
+        return false;
     }
+    $ref = strtoupper($order['public_id']);
+    $address = trim((string)$order['shipping_address']) ?: 'No shipping address given';
+    $rowsHtml = '';
+    $rowsText = '';
+    foreach (order_items_for((int)$order['id']) as $it) {
+        $line = (int)$it['unit_price_cents'] * (int)$it['quantity'];
+        $rowsHtml .= '<tr><td style="padding:6px 8px 6px 0;vertical-align:top"><strong>' . (int)$it['quantity'] . ' &times;</strong></td>'
+            . '<td style="padding:6px 0;vertical-align:top">' . e($it['name']) . '<br><span style="font-size:13px;color:#7a6f66">SKU ' . e($it['sku']) . ' &middot; ' . money((int)$it['unit_price_cents']) . ' each</span></td>'
+            . '<td style="padding:6px 0;text-align:right;vertical-align:top">' . money($line) . '</td></tr>';
+        $rowsText .= (int)$it['quantity'] . ' x ' . $it['name'] . ' (SKU ' . $it['sku'] . ', ' . money((int)$it['unit_price_cents']) . ' each)  ' . money($line) . "\n";
+    }
+    $totals = ['Subtotal' => (int)$order['subtotal_cents'], 'Shipping' => (int)$order['shipping_cents']];
+    if ((int)$order['tax_cents'] > 0) {
+        $totals['Tax'] = (int)$order['tax_cents'];
+    }
+    $totals['Total paid'] = (int)$order['total_cents'];
+    $totalsHtml = '';
+    $totalsText = '';
+    foreach ($totals as $label => $cents) {
+        $totalsHtml .= '<tr><td></td><td style="padding:3px 0;color:#5b5049">' . $label . '</td><td style="padding:3px 0;text-align:right">' . money($cents) . '</td></tr>';
+        $totalsText .= $label . ': ' . money($cents) . "\n";
+    }
+    $flag = (int)$order['oversold'] ? '<p style="color:#9b2c2c"><strong>Heads up:</strong> at least one item was oversold. Check stock before packing.</p>' : '';
+    $adminUrl = url('admin/order.php?id=' . (int)$order['id']);
+    $html = email_wrap('New order #' . $ref,
+        $flag
+        . '<p style="margin:0 0 4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#7a6f66">Ship to</p>'
+        . '<p style="margin:0 0 16px;font-size:16px;line-height:1.5">' . nl2br(e($address), false) . '</p>'
+        . '<p style="margin:0 0 4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#7a6f66">Customer</p>'
+        . '<p style="margin:0 0 16px">' . e($order['name']) . '<br><a href="mailto:' . e($order['email']) . '">' . e($order['email']) . '</a></p>'
+        . '<p style="margin:0 0 4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#7a6f66">Items</p>'
+        . '<table style="width:100%;border-collapse:collapse;font-size:15px">' . $rowsHtml . $totalsHtml . '</table>'
+        . '<p style="margin:16px 0 0;font-size:13px;color:#7a6f66">Paid ' . e(date('M j, Y g:ia', strtotime((string)($order['paid_at'] ?? 'now')))) . '. Reply to this email to write to the customer.</p>'
+        . '<p><a href="' . e($adminUrl) . '">Open the order in admin</a> to mark it shipped and add tracking.</p>');
+    $text = "New order #$ref\n" . ((int)$order['oversold'] ? "HEADS UP: at least one item was oversold. Check stock before packing.\n" : '')
+        . "\nShip to:\n$address\n\nCustomer: {$order['name']} <{$order['email']}>\n\nItems:\n$rowsText\n$totalsText\nOpen in admin: $adminUrl\n";
+    return postmark_send($owner, 'New order #' . $ref . ' (' . money((int)$order['total_cents']) . ') for ' . trim((string)$order['name']), $html, $text, 'order-owner', (string)$order['email'] ?: null);
 }
 
 function send_shipping_notice(array $order): bool

@@ -2,7 +2,7 @@
 require __DIR__ . '/includes/bootstrap.php';
 
 header('Content-Type: application/xml; charset=utf-8');
-$urls = ['', 'shop.php', 'shop.php?sale=1', 'about.php', 'shipping.php'];
+$urls = ['', 'shop.php', 'shop.php?sale=1', 'about.php', 'contact.php', 'shipping.php'];
 foreach (YARN_WEIGHTS as $w) {
     $urls[] = 'shop.php?weight=' . rawurlencode($w);
 }

@@ -8,7 +8,7 @@
 
 declare(strict_types=1);
 
-const MAINTENANCE_OPEN_PATHS = ['/webhook.php', '/success.php', '/subscribe.php', '/confirm.php', '/unsubscribe.php', '/track.php'];
+const MAINTENANCE_OPEN_PATHS = ['/webhook.php', '/success.php', '/subscribe.php', '/confirm.php', '/unsubscribe.php', '/track.php', '/contact.php'];
 
 function maintenance_file(): string
 {
