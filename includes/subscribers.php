@@ -212,13 +212,13 @@ function blast_lastchance(string $slugs): array
         }
         $more = count($inStock) - 5;
         $cards .= '<div style="display:inline-block;vertical-align:top;width:100%;max-width:252px;margin:0 4px 14px;text-align:left">'
-            . '<div style="background:#ffffff;border-radius:10px;overflow:hidden;border:2px solid #f2c94c">'
-            . '<div style="background:' . ($left > 0 ? '#e8504f' : '#7a6f66') . ';color:#ffffff;font:bold 13px/1 Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:9px 12px">' . e($badge) . ($off > 0 ? '<span style="float:right;background:#f2c94c;color:#2f2a26;border-radius:10px;padding:2px 8px;margin-top:-2px">' . $off . '% off</span>' : '') . '</div>'
+            . '<div style="background:#ffffff;border-radius:10px;overflow:hidden;border:2px solid #a9c4d9">'
+            . '<div style="background:' . ($left > 0 ? '#3d6b8e' : '#7a6f66') . ';color:#ffffff;font:bold 13px/1 Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:9px 12px">' . e($badge) . ($off > 0 ? '<span style="float:right;background:#a9c4d9;color:#2f2a26;border-radius:10px;padding:2px 8px;margin-top:-2px">' . $off . '% off</span>' : '') . '</div>'
             . '<a href="' . e($link) . '"><img src="' . e($img) . '" alt="' . e($p['name']) . '" width="252" style="display:block;width:100%;height:auto;border:0"></a>'
             . '<div style="padding:12px 14px 16px;font-family:Arial,sans-serif">'
             . ($p['brand'] !== '' ? '<p style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7a6f66">' . e($p['brand']) . '</p>' : '')
             . '<p style="margin:2px 0 6px;font-family:Georgia,serif;font-size:18px;line-height:1.25;color:#2f2a26">' . e($p['name']) . '</p>'
-            . '<p style="margin:0 0 10px;font-size:16px">' . ($off > 0 ? '<s style="color:#7a6f66">' . money($regular) . '</s> ' : '') . '<strong style="color:#c0392b">' . money($low) . '</strong></p>'
+            . '<p style="margin:0 0 10px;font-size:16px">' . ($off > 0 ? '<s style="color:#7a6f66">' . money($regular) . '</s> ' : '') . '<strong style="color:#2c5878">' . money($low) . '</strong></p>'
             . ($swatches !== '' ? '<p style="margin:0 0 4px;font-size:12px;color:#7a6f66">Tap a color:</p><div style="margin:0 0 10px">' . $swatches . ($more > 0 ? '<a href="' . e($link) . '" style="font-size:12px;color:#2f5d50;vertical-align:top;line-height:40px">+' . $more . ' more</a>' : '') . '</div>' : '')
             . '<a href="' . e($link) . '" style="display:block;text-align:center;background:#2f5d50;color:#ffffff;padding:11px 0;border-radius:6px;text-decoration:none;font-weight:bold">' . ($left > 0 ? 'Grab it before it\'s gone' : 'See it') . '</a>'
             . '</div></div></div>';
@@ -227,8 +227,8 @@ function blast_lastchance(string $slugs): array
     if ($cards === '') {
         return ['', ''];
     }
-    $html = '<div style="margin:6px -8px 18px;padding:18px 4px 4px;background:#fff4d6;border-radius:10px;text-align:center">' . $cards
-        . '<p style="margin:0 0 16px"><a href="' . e(url('shop.php?sale=1')) . '" style="display:inline-block;background:#e8504f;color:#ffffff;padding:12px 22px;border-radius:24px;text-decoration:none;font:bold 15px Arial,sans-serif">See everything on sale</a></p></div>';
+    $html = '<div style="margin:6px -8px 18px;padding:18px 4px 4px;background:#edf3f8;border-radius:10px;text-align:center">' . $cards
+        . '<p style="margin:0 0 16px"><a href="' . e(url('shop.php?sale=1')) . '" style="display:inline-block;background:#3d6b8e;color:#ffffff;padding:12px 22px;border-radius:24px;text-decoration:none;font:bold 15px Arial,sans-serif">See everything on sale</a></p></div>';
     return [$html, implode("\n\n", $text) . "\n\nEverything on sale: " . url('shop.php?sale=1')];
 }
 
@@ -295,8 +295,8 @@ function blast_render(string $body, string $firstName): array
         }
         if (preg_match('/^\[banner:([^\]]+)\]$/', $para, $m)) {
             $line = trim($m[1]);
-            $html .= '<div style="margin:0 -8px 18px;background:#e8504f;border-radius:10px;padding:22px 18px;text-align:center;color:#ffffff;font-family:Georgia,serif;font-size:26px;line-height:1.25">'
-                . e($line) . '<div style="width:60px;height:4px;background:#f2c94c;margin:12px auto 0;border-radius:2px"></div></div>';
+            $html .= '<div style="margin:0 -8px 18px;background:#3d6b8e;border-radius:10px;padding:22px 18px;text-align:center;color:#ffffff;font-family:Georgia,serif;font-size:26px;line-height:1.25">'
+                . e($line) . '<div style="width:60px;height:4px;background:#a9c4d9;margin:12px auto 0;border-radius:2px"></div></div>';
             $text[] = strtoupper($line);
             continue;
         }
