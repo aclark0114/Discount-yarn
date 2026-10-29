@@ -206,6 +206,12 @@ page_header($p['name'], mb_substr(trim((string)preg_replace('/\s+/u', ' ', strip
 </section>
 <?php endif; ?>
 
+<?php
+// Shipping for one of this product on its own, matching shipping_for() in includes/cart.php.
+$freeOver = (int)config('shipping.free_over_cents', 0);
+$shipCents = ($freeOver > 0 && min($prices) >= $freeOver) ? 0 : (int)config('shipping.flat_rate_cents', 0);
+$shipCountries = array_values((array)config('shipping.countries', ['US']));
+?>
 <script type="application/ld+json"><?= json_encode([
     '@context' => 'https://schema.org',
     '@type' => 'Product',
@@ -220,6 +226,17 @@ page_header($p['name'], mb_substr(trim((string)preg_replace('/\s+/u', ' ', strip
         'priceCurrency' => 'USD',
         'availability' => $anyInStock ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
         'url' => $canonical,
+        'shippingDetails' => [
+            '@type' => 'OfferShippingDetails',
+            'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => number_format($shipCents / 100, 2, '.', ''), 'currency' => 'USD'],
+            'shippingDestination' => array_map(fn($c) => ['@type' => 'DefinedRegion', 'addressCountry' => $c], $shipCountries),
+        ],
+        'hasMerchantReturnPolicy' => [
+            '@type' => 'MerchantReturnPolicy',
+            'applicableCountry' => count($shipCountries) === 1 ? $shipCountries[0] : $shipCountries,
+            'returnPolicyCategory' => 'https://schema.org/MerchantReturnNotPermitted',
+            'merchantReturnLink' => url('shipping.php'),
+        ],
     ],
 ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
 <?php page_footer();
